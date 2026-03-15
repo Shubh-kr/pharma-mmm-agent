@@ -1,0 +1,116 @@
+{
+  "total_budget_k": 956.1624999999999,
+  "current_response_index": 3.4388,
+  "optimal_response_index": 3.4388,
+  "projected_uplift_pct": 0.0,
+  "allocations": [
+    {
+      "channel": "Patient CRM Email",
+      "type": "dtc",
+      "current_spend_k": 12.6,
+      "optimal_spend_k": 19.1,
+      "change_k": 6.6,
+      "change_pct": 52.4,
+      "action": "Increase \u2191"
+    },
+    {
+      "channel": "HCP Email Campaigns",
+      "type": "hcp",
+      "current_spend_k": 16.5,
+      "optimal_spend_k": 19.1,
+      "change_k": 2.7,
+      "change_pct": 16.2,
+      "action": "Increase \u2191"
+    },
+    {
+      "channel": "Field Rep Visits",
+      "type": "hcp",
+      "current_spend_k": 207.2,
+      "optimal_spend_k": 206.3,
+      "change_k": -0.9,
+      "change_pct": -0.4,
+      "action": "Maintain \u2192"
+    },
+    {
+      "channel": "DTC Television",
+      "type": "dtc",
+      "current_spend_k": 245.5,
+      "optimal_spend_k": 244.6,
+      "change_k": -0.9,
+      "change_pct": -0.4,
+      "action": "Maintain \u2192"
+    },
+    {
+      "channel": "Samples & Co-pay Coupons",
+      "type": "hcp",
+      "current_spend_k": 94.9,
+      "optimal_spend_k": 94.0,
+      "change_k": -0.9,
+      "change_pct": -1.0,
+      "action": "Maintain \u2192"
+    },
+    {
+      "channel": "DTC Digital & Social",
+      "type": "dtc",
+      "current_spend_k": 94.2,
+      "optimal_spend_k": 93.3,
+      "change_k": -0.9,
+      "change_pct": -1.0,
+      "action": "Maintain \u2192"
+    },
+    {
+      "channel": "Medical Congress & Symposia",
+      "type": "hcp",
+      "current_spend_k": 73.4,
+      "optimal_spend_k": 72.4,
+      "change_k": -0.9,
+      "change_pct": -1.3,
+      "action": "Maintain \u2192"
+    },
+    {
+      "channel": "HCP Programmatic Digital",
+      "type": "hcp",
+      "current_spend_k": 58.4,
+      "optimal_spend_k": 57.5,
+      "change_k": -0.9,
+      "change_pct": -1.6,
+      "action": "Maintain \u2192"
+    },
+    {
+      "channel": "Out-of-Home Advertising",
+      "type": "dtc",
+      "current_spend_k": 49.6,
+      "optimal_spend_k": 48.7,
+      "change_k": -0.9,
+      "change_pct": -1.9,
+      "action": "Maintain \u2192"
+    },
+    {
+      "channel": "Journal Advertising",
+      "type": "hcp",
+      "current_spend_k": 41.2,
+      "optimal_spend_k": 40.3,
+      "change_k": -0.9,
+      "change_pct": -2.2,
+      "action": "Maintain \u2192"
+    },
+    {
+      "channel": "Speaker Bureau Programs",
+      "type": "hcp",
+      "current_spend_k": 40.8,
+      "optimal_spend_k": 39.9,
+      "change_k": -0.9,
+      "change_pct": -2.3,
+      "action": "Maintain \u2192"
+    },
+    {
+      "channel": "Patient Advocacy Partnerships",
+      "type": "dtc",
+      "current_spend_k": 21.8,
+      "optimal_spend_k": 20.9,
+      "change_k": -0.9,
+      "change_pct": -4.2,
+      "action": "Maintain \u2192"
+    }
+  ]
+}

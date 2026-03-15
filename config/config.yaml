@@ -1,0 +1,141 @@
+# ============================================================
+# Pharma MMM Agent — Master Configuration
+# ============================================================
+# Edit channel priors, model settings, and agent behaviour here.
+# No need to touch the Python code for routine adjustments.
+
+# ── LLM settings ────────────────────────────────────────────
+llm:
+  provider: openai          # openai | anthropic
+  model: gpt-4o             # gpt-4o | claude-3-5-sonnet-20241022
+  temperature: 0.1          # low temp = consistent, analytical responses
+  max_tokens: 4096
+
+# ── Data settings ───────────────────────────────────────────
+data:
+  weekly_path: data/raw/mmm_weekly.csv
+  monthly_path: data/raw/mmm_monthly.csv
+  default_freq: weekly      # weekly | monthly
+  outcome_col: scripts_written
+  date_col: date
+
+# ── Channel definitions ─────────────────────────────────────
+# adstock_decay : carryover rate (0=no carryover, 1=full carryover)
+# saturation    : diminishing returns (lower=faster saturation)
+# prior_roi     : expected ROI prior for Bayesian model
+# channel_type  : hcp | dtc
+
+channels:
+  rep_visits:
+    adstock_decay: 0.60
+    saturation: 0.55
+    prior_roi: 0.38
+    channel_type: hcp
+    label: "Field Rep Visits"
+
+  medical_congress:
+    adstock_decay: 0.75
+    saturation: 0.45
+    prior_roi: 0.52
+    channel_type: hcp
+    label: "Medical Congress & Symposia"
+
+  journal_advertising:
+    adstock_decay: 0.50
+    saturation: 0.65
+    prior_roi: 0.22
+    channel_type: hcp
+    label: "Journal Advertising"
+
+  hcp_email:
+    adstock_decay: 0.35
+    saturation: 0.80
+    prior_roi: 0.18
+    channel_type: hcp
+    label: "HCP Email Campaigns"
+
+  hcp_digital:
+    adstock_decay: 0.40
+    saturation: 0.70
+    prior_roi: 0.28
+    channel_type: hcp
+    label: "HCP Programmatic Digital"
+
+  speaker_programs:
+    adstock_decay: 0.70
+    saturation: 0.50
+    prior_roi: 0.45
+    channel_type: hcp
+    label: "Speaker Bureau Programs"
+
+  samples_coupons:
+    adstock_decay: 0.55
+    saturation: 0.60
+    prior_roi: 0.33
+    channel_type: hcp
+    label: "Samples & Co-pay Coupons"
+
+  dtc_tv:
+    adstock_decay: 0.50
+    saturation: 0.75
+    prior_roi: 0.20
+    channel_type: dtc
+    label: "DTC Television"
+
+  dtc_digital:
+    adstock_decay: 0.38
+    saturation: 0.72
+    prior_roi: 0.25
+    channel_type: dtc
+    label: "DTC Digital & Social"
+
+  dtc_ooh:
+    adstock_decay: 0.45
+    saturation: 0.68
+    prior_roi: 0.15
+    channel_type: dtc
+    label: "Out-of-Home Advertising"
+
+  patient_email:
+    adstock_decay: 0.30
+    saturation: 0.82
+    prior_roi: 0.16
+    channel_type: dtc
+    label: "Patient CRM Email"
+
+  patient_advocacy:
+    adstock_decay: 0.65
+    saturation: 0.55
+    prior_roi: 0.35
+    channel_type: dtc
+    label: "Patient Advocacy Partnerships"
+
+# ── OLS model settings ──────────────────────────────────────
+ols_model:
+  fit_intercept: true
+  seasonality_dummies: true   # adds month dummies as controls
+  congress_control: true      # adds congress_week/month as control
+  normalize_spend: true       # scale spend before fitting
+
+# ── Bayesian model settings ─────────────────────────────────
+bayesian_model:
+  draws: 2000
+  tune: 1000
+  chains: 4
+  target_accept: 0.90
+  prior_sigma: 0.15           # tightness of ROI priors
+
+# ── Budget optimiser settings ───────────────────────────────
+optimizer:
+  total_budget_multipliers: [0.80, 0.90, 1.00, 1.10, 1.20]
+  min_channel_share: 0.02     # no channel gets less than 2% of budget
+  max_channel_share: 0.35     # no channel gets more than 35% of budget
+
+# ── Report settings ─────────────────────────────────────────
+report:
+  output_dir: reports/
+  format: html                # html | pdf
+  include_charts: true
+  include_budget_table: true
+  include_narrative: true
+  pharma_brand_name: "VaxBrand"   # replace with your brand name
