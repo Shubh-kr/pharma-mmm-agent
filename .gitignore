@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Environment variables — NEVER commit API keys
+.env
+.env.local
+*.env
+
+# Mac system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Data — don't push large raw files to GitHub
+# (we keep sample CSVs since they're small and synthetic)
+data/processed/*.csv
+data/processed/*.parquet
+
+# Model artefacts
+*.pkl
+*.joblib
+*.h5
+models/
+
+# Reports (auto-generated)
+reports/*.html
+reports/*.pdf
+
+# PyMC / sampling traces
+*.nc
+traces/
+
+# Logs
+*.log
+logs/

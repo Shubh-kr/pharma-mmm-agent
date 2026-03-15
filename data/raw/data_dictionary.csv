@@ -1,0 +1,22 @@
+column,type,description
+date,date,Week start date (Mon) or month start date
+year,int,Calendar year
+week/month,int,ISO week number / calendar month
+quarter,int,Fiscal quarter (1-4)
+rep_visits,float ($K spend),HCP: Field rep detailing visits spend ($K)
+medical_congress,float ($K spend),HCP: Medical congress & symposia spend ($K)
+journal_advertising,float ($K spend),HCP: Journal advertising spend ($K)
+hcp_email,float ($K spend),HCP: Permission email to HCPs spend ($K)
+hcp_digital,float ($K spend),HCP: Programmatic HCP digital display spend ($K)
+speaker_programs,float ($K spend),HCP: KOL speaker bureau programs spend ($K)
+samples_coupons,float ($K spend),HCP: Sample drops & co-pay coupon spend ($K)
+dtc_tv,float ($K spend),DTC: Television advertising spend ($K)
+dtc_digital,float ($K spend),DTC: Digital & social patient advertising spend ($K)
+dtc_ooh,float ($K spend),DTC: Out-of-home advertising spend ($K)
+patient_email,float ($K spend),DTC: Patient CRM email campaigns spend ($K)
+patient_advocacy,float ($K spend),DTC: Patient advocacy partnerships spend ($K)
+total_spend,float ($K),Sum of all 12 channel spends ($K)
+scripts_written,int,Vaccine prescriptions written (proxy outcome)
+nrx_index,float (0-100),"Normalised new Rx index, 0=min, 100=max over period"
+vaccine_season,binary,"1 = Sep/Oct/Nov vaccine season, 0 = off-season"
+congress_week/month,binary,"1 = congress month (Feb/May/Oct), 0 = otherwise"

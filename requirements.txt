@@ -1,0 +1,30 @@
+# LangChain core
+langchain>=0.2.0
+langchain-openai>=0.1.0
+langchain-anthropic>=0.1.0
+langchain-community>=0.2.0
+
+# Bayesian MMM
+pymc>=5.0.0
+arviz>=0.17.0
+
+# Classical MMM + stats
+scikit-learn>=1.3.0
+statsmodels>=0.14.0
+scipy>=1.11.0
+
+# Data
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Visualisation + reporting
+plotly>=5.18.0
+kaleido>=0.2.1
+
+# Config + environment
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Notebooks
+jupyter>=1.0.0
+ipykernel>=6.0.0
