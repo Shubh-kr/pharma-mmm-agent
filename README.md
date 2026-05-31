@@ -24,9 +24,8 @@ If you've ever spent weeks wrangling claims data, fitting adstock curves, and th
 | `agents/analytics_agent.py` | Runs adstock, saturation, OLS and Bayesian MMM models |
 | `agents/insight_agent.py` | Converts model output to pharma-grade narrative |
 | `tools/` | Modular LangChain tools: adstock, saturation, regression, PyMC, Plotly |
-| `notebooks/01_data_exploration.ipynb` | EDA walkthrough of the sample dataset |
-| `notebooks/02_mmm_walkthrough.ipynb` | Step-by-step MMM modelling notebook |
-| `notebooks/03_agent_demo.ipynb` | End-to-end agent run with annotated outputs |
+| `notebooks/01_mmm_pipeline_walkthrough.ipynb` | Full MMM pipeline walkthrough — transforms, OLS, optimiser |
+| `notebooks/02_agent_deep_dive.ipynb` | End-to-end agent run with annotated outputs |
 | `data/raw/` | Ready-to-use synthetic datasets (weekly + monthly) |
 | `reports/` | Sample auto-generated HTML/PDF report |
 | `config/config.yaml` | Channel definitions, model hyperparameters, adstock priors |
@@ -67,7 +66,7 @@ User Query
 └──────┬───────┘   └────────┬────────────┘
        │                    │
        ▼                    ▼
-  LangChain Tools       LLM (GPT-4 / Claude)
+  LangChain Tools       LLM (Claude / GPT-4)
   ├── adstock_tool
   ├── saturation_tool
   ├── ols_mmm_tool
@@ -90,10 +89,17 @@ pip install -r requirements.txt
 
 ### 2. Set your API key
 
+Create a `.env` file in the project root and add your key:
+
 ```bash
-cp .env.example .env
-# Add your OpenAI or Anthropic key to .env
+# Anthropic (default — recommended)
+ANTHROPIC_API_KEY=your-key-here
+
+# Or OpenAI
+OPENAI_API_KEY=your-key-here
 ```
+
+Switch providers in `config/config.yaml` by setting `llm.provider: anthropic` or `llm.provider: openai`.
 
 ### 3. Generate the sample dataset
 
@@ -104,10 +110,14 @@ python scripts/generate_dataset.py
 ### 4. Run the agent
 
 ```bash
-python agents/planner_agent.py \
-  --data data/raw/mmm_weekly.csv \
-  --freq weekly \
-  --model ols
+# Full pipeline (transforms → OLS → optimiser → Claude insight narrative)
+python run.py
+
+# Monthly data
+python run.py --freq monthly
+
+# Skip LLM narrative (no API key needed)
+python run.py --no-insights
 ```
 
 ### 5. Or explore the notebooks
@@ -194,26 +204,24 @@ Full schema: see `data/raw/data_dictionary.csv`
 All model parameters live in `config/config.yaml`:
 
 ```yaml
+llm:
+  provider: anthropic       # openai | anthropic
+  model: claude-sonnet-4-6  # claude-sonnet-4-6 | gpt-4o
+
 channels:
   rep_visits:
     adstock_decay: 0.6
-    saturation_alpha: 0.55
-    prior_roi_mean: 0.38
+    saturation: 0.55
+    prior_roi: 0.38
   medical_congress:
     adstock_decay: 0.75
-    saturation_alpha: 0.45
-    prior_roi_mean: 0.52
+    saturation: 0.45
+    prior_roi: 0.52
   # ... all 12 channels
 
-model:
-  ols:
-    fit_intercept: true
-    seasonality_dummies: true
-  bayesian:
-    draws: 2000
-    tune: 1000
-    chains: 4
-    target_accept: 0.9
+optimizer:
+  min_channel_share: 0.02   # no channel gets < 2% of budget
+  max_channel_share: 0.35   # no channel gets > 35% of budget
 ```
 
 ---
@@ -223,6 +231,7 @@ model:
 ```
 langchain>=0.2.0
 langchain-openai>=0.1.0
+langchain-anthropic>=0.1.0
 pymc>=5.0.0
 arviz>=0.17.0
 scikit-learn>=1.3.0
@@ -241,8 +250,8 @@ jupyter>=1.0.0
 
 Built by **Shubham Kumar** — Senior Data Scientist at Deloitte with 6+ years building production ML systems for pharma and life sciences. This template is distilled from real-world MMM projects spanning 20M+ patient profiles, vaccine campaigns across 247 zip codes, and commercial strategy work for some of the largest pharma brands globally.
 
-- 🔗 [LinkedIn](https://linkedin.com/in/shabam23)
-- 🐙 [GitHub](https://github.com/Shubh-kr)
+- 🔗 [LinkedIn](https://linkedin.com/in/YOUR_HANDLE)
+- 🐙 [GitHub](https://github.com/YOUR_USERNAME)
 - 📧 shubham.mle@gmail.com
 
 ---

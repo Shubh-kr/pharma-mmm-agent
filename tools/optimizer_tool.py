@@ -60,7 +60,7 @@ def run_budget_optimizer_tool(
             ch_data = ols.get("channels", {}).get(ch, {})
             fitted_roi[ch] = max(ch_data.get("estimated_roi", channels[ch]["prior_roi"]), 0.05)
             periods = ols.get("n_observations", n_periods)
-            current_spend[ch] = ch_data.get("total_spend_k", channels[ch]["base"] * n_periods) / periods
+            current_spend[ch] = ch_data.get("total_spend_k", total_budget_k / len(ch_names)) / periods
 
         def objective(x):
             total = 0.0

@@ -82,11 +82,15 @@ def run_mmm_pipeline(
     if verbose:
         print("🤖 Step 1/3 — Running analytics agent (transforms + OLS + optimiser)...")
 
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+    provider = config.get("llm", {}).get("provider", "openai").lower()
+    if provider == "anthropic":
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+    else:
+        api_key = os.getenv("OPENAI_API_KEY")
 
     # Detect placeholder values — treat as no key
-    _placeholders = ("your-openai-key-here", "your-key-here", "sk-...", "", None)
-    has_real_key = api_key and not any(p in str(api_key) for p in _placeholders)
+    _placeholders = ("your-openai-key-here", "your-key-here", "your-anthropic-key-here", "sk-...")
+    has_real_key = bool(api_key and not any(p in str(api_key) for p in _placeholders))
 
     if has_real_key and not run_insights is False:
         # Full LLM-orchestrated pipeline

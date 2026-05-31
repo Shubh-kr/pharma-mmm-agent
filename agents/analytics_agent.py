@@ -11,8 +11,8 @@ Can be used standalone or orchestrated by the planner agent.
 """
 
 import os
-from langchain_openai import ChatOpenAI
-from langchain.agents import AgentExecutor, create_openai_tools_agent
+import yaml
+from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import SystemMessage
 from dotenv import load_dotenv
@@ -63,6 +63,27 @@ commercial strategy team — confident, evidence-based, no fluff.
 
 # ── Agent factory ─────────────────────────────────────────────────────────────
 
+def _build_llm(cfg: dict):
+    provider = cfg.get("llm", {}).get("provider", "openai").lower()
+    model = cfg.get("llm", {}).get("model", "gpt-4o")
+    temperature = cfg.get("llm", {}).get("temperature", 0.1)
+
+    if provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(
+            model=model,
+            temperature=temperature,
+            api_key=os.getenv("ANTHROPIC_API_KEY")
+        )
+    else:
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model,
+            temperature=temperature,
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
+
+
 def create_analytics_agent(model_name: str = None, verbose: bool = True):
     """
     Create and return the analytics agent executor.
@@ -74,22 +95,18 @@ def create_analytics_agent(model_name: str = None, verbose: bool = True):
     Returns:
         AgentExecutor ready to invoke
     """
-    import yaml
     config_path = "config/config.yaml"
 
-    if model_name is None:
-        try:
-            with open(config_path) as f:
-                cfg = yaml.safe_load(f)
-            model_name = cfg["llm"]["model"]
-        except Exception:
-            model_name = "gpt-4o"
+    try:
+        with open(config_path) as f:
+            cfg = yaml.safe_load(f)
+    except Exception:
+        cfg = {"llm": {"provider": "openai", "model": "gpt-4o", "temperature": 0.1}}
 
-    llm = ChatOpenAI(
-        model=model_name,
-        temperature=0.1,
-        api_key=os.getenv("OPENAI_API_KEY")
-    )
+    if model_name is not None:
+        cfg["llm"]["model"] = model_name
+
+    llm = _build_llm(cfg)
 
     tools = [
         apply_all_transforms_tool,
@@ -105,7 +122,7 @@ def create_analytics_agent(model_name: str = None, verbose: bool = True):
         MessagesPlaceholder(variable_name="agent_scratchpad"),
     ])
 
-    agent = create_openai_tools_agent(llm, tools, prompt)
+    agent = create_tool_calling_agent(llm, tools, prompt)
     return AgentExecutor(agent=agent, tools=tools, verbose=verbose, max_iterations=10)
 
 
@@ -143,7 +160,12 @@ def run_analytics_pipeline(
     """
 
     result = agent.invoke({"input": query})
-    return result["output"]
+    output = result["output"]
+    if isinstance(output, list):
+        output = "\n".join(
+            part["text"] for part in output if isinstance(part, dict) and "text" in part
+        )
+    return output
 
 
 # ── CLI entry point ───────────────────────────────────────────────────────────

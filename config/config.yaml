@@ -6,8 +6,8 @@
 
 # ── LLM settings ────────────────────────────────────────────
 llm:
-  provider: openai          # openai | anthropic
-  model: gpt-4o             # gpt-4o | claude-3-5-sonnet-20241022
+  provider: anthropic       # openai | anthropic
+  model: claude-sonnet-4-6  # claude-sonnet-4-6 | gpt-4o
   temperature: 0.1          # low temp = consistent, analytical responses
   max_tokens: 4096
 

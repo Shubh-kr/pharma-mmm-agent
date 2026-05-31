@@ -13,10 +13,9 @@ Reads OLS results and budget optimisation JSON, then writes:
 
 import os
 import json
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from dotenv import load_dotenv
-import os, sys
+import sys
 
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
@@ -73,11 +72,29 @@ Rules:
 
 # ── Core insight generation ───────────────────────────────────────────────────
 
+def _build_llm(model_name: str, provider: str = "openai"):
+    if provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(
+            model=model_name,
+            temperature=0.2,
+            api_key=os.getenv("ANTHROPIC_API_KEY")
+        )
+    else:
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model_name,
+            temperature=0.2,
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
+
+
 def generate_insights(
     ols_results_path: str,
     optimizer_results_path: str,
     brand_name: str = "VaxBrand",
-    model_name: str = "gpt-4o"
+    model_name: str = "gpt-4o",
+    provider: str = "openai"
 ) -> str:
     """
     Generate pharma-grade narrative from MMM results.
@@ -119,11 +136,7 @@ def generate_insights(
     {json.dumps(opt_results['allocations'], indent=2)}
     """
 
-    llm = ChatOpenAI(
-        model=model_name,
-        temperature=0.2,
-        api_key=os.getenv("OPENAI_API_KEY")
-    )
+    llm = _build_llm(model_name, provider)
 
     messages = [
         SystemMessage(content=INSIGHT_SYSTEM_PROMPT),
@@ -162,6 +175,7 @@ def run_insight_agent(
 
     brand_name = config.get("report", {}).get("pharma_brand_name", "VaxBrand")
     model_name = config.get("llm", {}).get("model", "gpt-4o")
+    provider   = config.get("llm", {}).get("provider", "openai").lower()
 
     prefix = "mmm_weekly" if freq == "weekly" else "mmm_monthly"
     ols_path = f"{data_dir}/{prefix}_ols_results.json"
@@ -173,7 +187,8 @@ def run_insight_agent(
         ols_results_path=ols_path,
         optimizer_results_path=opt_path,
         brand_name=brand_name,
-        model_name=model_name
+        model_name=model_name,
+        provider=provider
     )
 
     # Save narrative
