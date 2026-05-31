@@ -130,6 +130,11 @@ bayesian_model:
   chains: 4
   target_accept: 0.90
   prior_sigma: 0.15           # tightness of ROI priors
+  # Geo Bayesian uses fewer draws for speed (6 territories × ~3 min each)
+  # Raise to 1500/750/4 for publication-quality posteriors
+  geo_draws: 800
+  geo_tune: 400
+  geo_chains: 2
 
 # ── Budget optimiser settings ───────────────────────────────
 optimizer:

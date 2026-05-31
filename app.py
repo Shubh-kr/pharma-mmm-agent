@@ -60,6 +60,14 @@ def load_geo_dataset(freq):
         return None
     return pd.read_csv(path, parse_dates=["date"])
 
+@st.cache_data
+def load_geo_bayesian(freq):
+    path = f"data/raw/mmm_{freq}_geo_bayesian_results.json"
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        return json.load(f)
+
 def load_json(path):
     if os.path.exists(path):
         with open(path) as f:
@@ -105,8 +113,13 @@ def sidebar(config):
     if run_insights and not has_key:
         st.sidebar.warning(f"Set {key_var} in .env to enable insights")
 
-    run_btn     = st.sidebar.button("▶ Run Pipeline", type="primary", use_container_width=True)
-    run_geo_btn = st.sidebar.button("🗺️ Run Geo Pipeline", use_container_width=True)
+    run_btn         = st.sidebar.button("▶ Run Pipeline", type="primary", use_container_width=True)
+    run_geo_btn     = st.sidebar.button("🗺️ Run Geo Pipeline", use_container_width=True)
+    run_geo_bayes   = st.sidebar.checkbox(
+        "Include Geo Bayesian (~20 min)",
+        value=False,
+        help="Runs PyMC per territory after Geo Ridge. Adds HDI credible intervals.",
+    )
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("**LLM config**")
@@ -115,7 +128,7 @@ def sidebar(config):
         f"model    : {config['llm']['model']}",
         language=None,
     )
-    return freq, run_bayesian, run_insights, run_btn, run_geo_btn
+    return freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes
 
 
 def run_pipeline(freq, run_bayesian, run_insights):
@@ -522,7 +535,7 @@ def tab_budget(opt, config):
         )
 
 
-def run_geo_pipeline(freq):
+def run_geo_pipeline(freq, run_bayesian=False):
     with st.status("Running Geo MMM pipeline…", expanded=True) as status:
         from tools.geo_mmm_tool import run_geo_ols_mmm_tool
         from tools.geo_optimizer_tool import run_geo_budget_optimizer_tool
@@ -558,11 +571,153 @@ def run_geo_pipeline(freq):
             "freq":                     freq,
         })
 
+        if run_bayesian:
+            from tools.geo_bayesian_mmm_tool import run_geo_bayesian_mmm_tool
+            st.write("🧮 Running Geo Bayesian MMM (per territory, ~20 min)…")
+            run_geo_bayesian_mmm_tool.invoke(
+                {"data_path": geo_path, "config_path": "config/config.yaml", "freq": freq}
+            )
+
         status.update(label="Geo pipeline complete!", state="complete")
     st.cache_data.clear()
 
 
-def tab_geo(geo_df, geo_ols, geo_opt, config):
+def _render_geo_bayesian(geo_bayes: dict, config: dict):
+    """Bayesian sub-section rendered inside tab_geo."""
+    territories_cfg = config.get("territories", {})
+    terr_data       = geo_bayes.get("territories", {})
+
+    if not terr_data:
+        st.info("Geo Bayesian results are empty.")
+        return
+
+    # ── Convergence summary ────────────────────────────────────────────────────
+    st.subheader("Convergence & model fit")
+    conv_rows = []
+    for tk, td in terr_data.items():
+        mcmc = td.get("mcmc", {})
+        conv_rows.append({
+            "Territory":  td.get("label", tk),
+            "R²":         td["r_squared_posterior_mean"],
+            "MAPE":       f"{td['mape_pct']:.1f}%",
+            "R̂ max":     mcmc.get("max_rhat", "—"),
+            "Converged":  "✓" if mcmc.get("converged") else "⚠ check chains",
+            "Draws":      f"{mcmc.get('chains', '?')}×{mcmc.get('draws', '?')}",
+        })
+    st.dataframe(pd.DataFrame(conv_rows), use_container_width=True, hide_index=True)
+
+    # ── ROI + 90% HDI by territory — channel selector ─────────────────────────
+    st.subheader("Channel ROI with 90% credible interval")
+
+    # Build channel list from first territory
+    first_td  = next(iter(terr_data.values()))
+    ch_labels = {ck: cv["label"] for ck, cv in first_td["channels"].items()}
+    sel_labels = st.multiselect(
+        "Channels to display",
+        options=list(ch_labels.values()),
+        default=list(ch_labels.values())[:5],
+    )
+    sel_keys = [k for k, v in ch_labels.items() if v in sel_labels]
+
+    if sel_keys:
+        hdi_rows = []
+        for tk, td in terr_data.items():
+            label = td.get("label", tk)
+            for ck in sel_keys:
+                ch = td["channels"].get(ck, {})
+                if not ch:
+                    continue
+                hdi_rows.append({
+                    "territory":  label,
+                    "channel":    ch["label"],
+                    "roi":        ch["estimated_roi"],
+                    "hdi_lo":     ch["contribution_hdi_5"],
+                    "hdi_hi":     ch["contribution_hdi_95"],
+                    "contrib":    ch["total_contribution"],
+                    "ch_type":    ch["channel_type"],
+                })
+        hdi_df = pd.DataFrame(hdi_rows)
+
+        fig = go.Figure()
+        for ch_label in sel_labels:
+            sub = hdi_df[hdi_df["channel"] == ch_label]
+            if sub.empty:
+                continue
+            color = HCP_CLR if sub.iloc[0]["ch_type"] == "hcp" else DTC_CLR
+            fig.add_trace(go.Scatter(
+                x=sub["territory"],
+                y=sub["roi"],
+                error_y=dict(
+                    type="data",
+                    symmetric=False,
+                    array=(sub["hdi_hi"] - sub["contrib"]) / (sub["contrib"].abs() + 1e-9) * sub["roi"],
+                    arrayminus=(sub["contrib"] - sub["hdi_lo"]) / (sub["contrib"].abs() + 1e-9) * sub["roi"],
+                    color="#9CA3AF",
+                    thickness=1.5,
+                    width=4,
+                ),
+                mode="markers+lines",
+                marker=dict(color=color, size=8),
+                line=dict(color=color, width=1, dash="dot"),
+                name=ch_label,
+            ))
+        fig.update_layout(
+            height=400,
+            margin=dict(t=10, b=10, l=0, r=10),
+            xaxis_title=None,
+            yaxis_title="Blended ROI",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption("Error bars = 90% credible interval (5th–95th percentile). "
+                   "Wider bars = more posterior uncertainty.")
+
+    # ── HDI width heatmap — uncertainty across territories × channels ──────────
+    st.subheader("Posterior uncertainty heatmap (HDI width)")
+    st.caption("Wider HDI = model less confident. Useful for deciding where to run lift tests.")
+
+    heat_rows = []
+    ch_order_keys = list(first_td["channels"].keys())
+    for tk, td in terr_data.items():
+        row = {"Territory": td.get("label", tk)}
+        for ck in ch_order_keys:
+            ch = td["channels"].get(ck, {})
+            if ch:
+                width = round(ch["contribution_hdi_95"] - ch["contribution_hdi_5"], 0)
+                row[ch["label"]] = width
+        heat_rows.append(row)
+
+    heat_df = pd.DataFrame(heat_rows).set_index("Territory")
+    fig = px.imshow(
+        heat_df,
+        color_continuous_scale=[[0, "#EFF6FF"], [0.5, "#60A5FA"], [1, "#1E3A5F"]],
+        labels={"color": "HDI width\n(scripts)"},
+        aspect="auto",
+        height=280,
+    )
+    fig.update_layout(margin=dict(t=10, b=10, l=0, r=0),
+                      xaxis_tickangle=-35)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ── Ridge vs Bayesian ROI scatter per territory ────────────────────────────
+    st.subheader("Ridge vs Bayesian ROI — all territories")
+    scatter_rows = []
+    for tk, td in terr_data.items():
+        terr_label = td.get("label", tk)
+        for ck, cv in td["channels"].items():
+            scatter_rows.append({
+                "territory": terr_label,
+                "channel":   cv["label"],
+                "bayes_roi": cv["estimated_roi"],
+                "ch_type":   cv["channel_type"],
+            })
+    scatter_df = pd.DataFrame(scatter_rows)
+
+    # We need Ridge ROI from geo_ols — pass it via st.session_state or rely on caller
+    st.caption("Ridge ROI is not shown here; load geo OLS results alongside Bayesian to compare.")
+
+
+def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, config):
     territories_cfg = config.get("territories", {})
 
     if geo_df is None:
@@ -720,6 +875,61 @@ def tab_geo(geo_df, geo_ols, geo_opt, config):
         )
         st.plotly_chart(fig, use_container_width=True)
 
+    # ── Bayesian per-territory section ────────────────────────────────────────
+    if geo_bayes:
+        st.divider()
+        st.header("🧮 Bayesian MMM — per territory")
+
+        # Ridge vs Bayesian ROI scatter (requires both results)
+        if geo_ols and (geo_ols or {}).get("territories"):
+            st.subheader("Ridge vs Bayesian ROI — all territories")
+            scatter_rows = []
+            for tk, td_bayes in geo_bayes.get("territories", {}).items():
+                td_ridge = (geo_ols.get("territories") or {}).get(tk, {})
+                terr_label = td_bayes.get("label", tk)
+                for ck, cv_b in td_bayes["channels"].items():
+                    cv_r = td_ridge.get("channels", {}).get(ck, {})
+                    if cv_r:
+                        scatter_rows.append({
+                            "territory":  terr_label,
+                            "channel":    cv_b["label"],
+                            "ridge_roi":  cv_r.get("estimated_roi", 0),
+                            "bayes_roi":  cv_b["estimated_roi"],
+                            "ch_type":    cv_b["channel_type"],
+                        })
+            if scatter_rows:
+                sc_df = pd.DataFrame(scatter_rows)
+                lim   = max(sc_df["ridge_roi"].max(), sc_df["bayes_roi"].max()) * 1.1
+                fig   = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=[0, lim], y=[0, lim], mode="lines",
+                    line=dict(color="#D1D5DB", dash="dash"), showlegend=False,
+                ))
+                for terr_label in sc_df["territory"].unique():
+                    sub = sc_df[sc_df["territory"] == terr_label]
+                    fig.add_trace(go.Scatter(
+                        x=sub["ridge_roi"], y=sub["bayes_roi"],
+                        mode="markers", name=terr_label,
+                        marker=dict(size=8),
+                        text=sub["channel"],
+                        hovertemplate="%{text}<br>Ridge: %{x:.3f}<br>Bayesian: %{y:.3f}",
+                    ))
+                fig.update_layout(
+                    height=380, margin=dict(t=10, b=10, l=0, r=10),
+                    xaxis_title="Ridge ROI", yaxis_title="Bayesian ROI",
+                    legend=dict(title="Territory", orientation="v"),
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption("Points above diagonal = Bayesian assigns higher ROI than Ridge. "
+                           "Tight cluster = models agree; dispersion = more uncertainty.")
+
+        _render_geo_bayesian(geo_bayes, config)
+    elif geo_df is not None:
+        st.info(
+            "Geo Bayesian results not yet available. "
+            "Check **Include Geo Bayesian** and click **🗺️ Run Geo Pipeline** (~20 min)."
+        )
+
     # ── Geo budget optimiser results ───────────────────────────────────────────
     if geo_opt:
         st.subheader("Geo budget optimiser")
@@ -815,14 +1025,14 @@ def tab_insights(freq):
 
 def main():
     config = load_config()
-    freq, run_bayesian, run_insights, run_btn, run_geo_btn = sidebar(config)
+    freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes = sidebar(config)
 
     if run_btn:
         run_pipeline(freq, run_bayesian, run_insights)
         st.rerun()
 
     if run_geo_btn:
-        run_geo_pipeline(freq)
+        run_geo_pipeline(freq, run_bayesian=run_geo_bayes)
         st.rerun()
 
     prefix = f"data/raw/mmm_{freq}"
@@ -831,8 +1041,9 @@ def main():
     ols    = load_json(f"{prefix}_ols_results.json")
     bayes  = load_json(f"{prefix}_bayesian_results.json")
     opt    = load_json(f"{prefix}_budget_optimized.json")
-    geo_ols = load_json(f"{prefix}_geo_ols_results.json")
-    geo_opt = load_json(f"{prefix}_geo_budget_optimized.json")
+    geo_ols   = load_json(f"{prefix}_geo_ols_results.json")
+    geo_opt   = load_json(f"{prefix}_geo_budget_optimized.json")
+    geo_bayes = load_geo_bayesian(freq)
 
     st.title("💊 Pharma MMM Agent")
     st.caption(
@@ -864,7 +1075,7 @@ def main():
         tab_budget(opt, config)
 
     with tabs[4]:
-        tab_geo(geo_df, geo_ols, geo_opt, config)
+        tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, config)
 
     with tabs[5]:
         tab_insights(freq)
