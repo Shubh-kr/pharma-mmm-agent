@@ -103,6 +103,7 @@ def _build_llm(model_name: str, provider: str = "openai"):
         return ChatAnthropic(
             model=model_name,
             temperature=0.2,
+            max_tokens=8096,
             api_key=os.getenv("ANTHROPIC_API_KEY")
         )
     else:
@@ -282,6 +283,297 @@ def run_insight_agent(
         f.write(narrative)
 
     print(f"✅ Insight report saved to {out_path}")
+    return narrative
+
+
+# ── Geo insight system prompt ─────────────────────────────────────────────────
+
+GEO_INSIGHT_SYSTEM_PROMPT = """You are a Senior Pharma Commercial Strategy Analyst with deep expertise
+in vaccine marketing, regional field operations, and geo-level Marketing Mix Modelling (MMM).
+
+You receive territory-disaggregated MMM results for a pharma vaccine brand across 6 US territories.
+Each territory has its own Ridge MMM model, budget optimisation, and optionally a Bayesian MMM
+with 90% credible intervals. Convert this into a clear, actionable geo strategy narrative for
+a pharma commercial leadership team.
+
+## How to interpret the geo data
+
+Territory config parameters you will receive:
+- market_size: relative NRx potential (higher = larger addressable market)
+- spend_share: current fraction of national budget allocated to this territory
+- hcp_mult: how much more (>1) or less (<1) responsive this territory's HCPs are vs national avg
+- dtc_mult: same for DTC/patient channels
+- season_str: vaccine season intensity (1.0 = national average; >1 = stronger flu season)
+
+Key analytical lenses:
+1. OVER/UNDER-INVESTMENT: Compare spend_share vs market_size share. A territory getting 20% of
+   budget but only 15% of market is over-invested — and vice versa.
+2. CHANNEL MIX FIT: Does the territory's top channel match its hcp_mult vs dtc_mult profile?
+   A high-hcp_mult territory dominated by DTC suggests a channel mix problem.
+3. ROI EFFICIENCY: Compare each territory's weighted avg ROI — which generates the most scripts
+   per dollar? The geo optimizer's ROI efficiency score is your primary signal.
+4. UNCERTAINTY (Bayesian): Wide HDI = the model is uncertain about that territory's response.
+   These are the best candidates for geo holdout / lift test experiments.
+5. BASELINE SCRIPTS: High baseline relative to market_size = strong brand equity in that territory.
+   Low baseline = organic NRx underperforming market potential.
+
+## Output structure
+
+---
+## Executive Summary
+(4–5 sentences: overall geo model quality, biggest territory finding, headline reallocation
+recommendation with projected uplift, and where uncertainty is highest)
+
+## Territory Performance Snapshot
+(A concise comparison table or ranked list: territory, ROI efficiency, spend share vs market share,
+model R², top channel — annotated with over/under-investment flags)
+
+## Territory Deep-Dives
+For each territory (Northeast, Southeast, Midwest, Southwest, Mountain, Pacific):
+  - 2–3 sentences: what's working, what's not, why (cite hcp/dtc_mult, season_str)
+  - Specific recommendation (e.g. "shift $Xk from DTC TV to rep_visits" or "hold spend, run lift test")
+  - If Bayesian: cite HDI width to flag confidence level
+
+## National Geo Budget Reallocation
+(Territory-level reallocation: which territories gain/lose budget, by how much, projected uplift.
+Always cite the corridor constraint — e.g. "capped at +30% per cycle operational constraint")
+
+## Lift Test & Uncertainty Priorities
+(Which 1–2 territories should be geo holdout candidates based on: widest Bayesian HDI,
+biggest Ridge vs Bayesian ROI disagreement, or largest over/under-investment gap)
+
+## Cross-Territory Strategic Themes
+(2–3 pharma-specific themes that cut across territories: e.g. HCP channel strength in academic
+medical centre markets, DTC pull-through in Southern markets, seasonal variation in Mountain/Pacific)
+
+## Caveats & Next Steps
+(Model independence limitation, what a hierarchical model would add, recommended actions)
+---
+
+Rules:
+- Never invent numbers not present in the data
+- Use pharma commercial vocabulary: HCP, NRx, detailing, SOV, pull-through, KOL density
+- Quantify every claim with territory name + dollar amount + ROI + % change
+- Flag over/under-investment explicitly with the spend_share vs market_size gap
+- Audience: VP Commercial, Field VP, Brand lead — data-literate, time-poor, regionally accountable
+"""
+
+
+# ── Geo insight generation ────────────────────────────────────────────────────
+
+def _territory_context_block(terr_key: str, terr_cfg: dict, ols_td: dict,
+                              opt_ta: dict, bayes_td) -> str:
+    """Build a compact context block for one territory."""
+    label      = terr_cfg.get("label", terr_key)
+    top_chs    = sorted(
+        ols_td.get("channels", {}).items(),
+        key=lambda x: x[1]["contribution_pct"], reverse=True
+    )[:3]
+    top_ch_str = ", ".join(
+        f"{v['label']} {v['contribution_pct']:.1f}% (ROI {v['estimated_roi']:.3f})"
+        for _, v in top_chs
+    )
+
+    block = f"""
+--- {label.upper()} ---
+Config: market_size={terr_cfg.get('market_size')}, spend_share={terr_cfg.get('spend_share'):.0%}, \
+hcp_mult={terr_cfg.get('hcp_mult')}, dtc_mult={terr_cfg.get('dtc_mult')}, season_str={terr_cfg.get('season_str')}
+Ridge: R²={ols_td.get('r_squared_posterior_mean', ols_td.get('r_squared'))}, \
+MAPE={ols_td.get('mape_pct')}%, baseline={ols_td.get('baseline_scripts'):,.0f} scripts/period
+Avg period spend: ${ols_td.get('avg_period_spend_k', 0):,.1f}K
+Top 3 channels: {top_ch_str}"""
+
+    if bayes_td:
+        mcmc      = bayes_td.get("mcmc", {})
+        conv_tag  = "converged ✓" if mcmc.get("converged") else f"R̂={mcmc.get('max_rhat')} ⚠"
+        # Widest HDI channel (highest uncertainty)
+        widest    = max(
+            bayes_td.get("channels", {}).items(),
+            key=lambda x: x[1].get("contribution_hdi_95", 0) - x[1].get("contribution_hdi_5", 0),
+            default=(None, {})
+        )
+        w_label   = widest[1].get("label", "—") if widest[0] else "—"
+        w_width   = (widest[1].get("contribution_hdi_95", 0) - widest[1].get("contribution_hdi_5", 0)
+                     if widest[0] else 0)
+        block += f"""
+Bayesian: R²={bayes_td.get('r_squared_posterior_mean')}, {conv_tag}
+Widest HDI: {w_label} (±{w_width:,.0f} scripts — highest uncertainty in this territory)"""
+
+    if opt_ta:
+        block += f"""
+Optimizer: current_share={opt_ta.get('current_share', 0):.1%} → optimal_share={opt_ta.get('optimal_share', 0):.1%}, \
+action={opt_ta.get('action', '—')}, channel_uplift=+{opt_ta.get('projected_channel_uplift_pct', 0):.1f}%"""
+        top_ch_opt = sorted(
+            opt_ta.get("channel_allocations", []),
+            key=lambda x: abs(x.get("change_pct", 0)), reverse=True
+        )[:2]
+        if top_ch_opt:
+            ch_recs = "; ".join(
+                f"{r['channel']} {r['change_pct']:+.0f}% (${r['change_k']:+.1f}K)"
+                for r in top_ch_opt
+            )
+            block += f"\nBiggest channel moves: {ch_recs}"
+
+    return block
+
+
+def generate_geo_insights(
+    geo_ols_path: str,
+    geo_opt_path: str,
+    config_path: str,
+    geo_bayes_path: str = None,
+    brand_name: str = "VaxBrand",
+    model_name: str = "gpt-4o",
+    provider: str = "openai",
+) -> str:
+    """
+    Generate a territory-level strategic narrative from geo MMM results.
+
+    Args:
+        geo_ols_path   : path to *_geo_ols_results.json
+        geo_opt_path   : path to *_geo_budget_optimized.json
+        config_path    : path to config.yaml (for territory metadata)
+        geo_bayes_path : path to *_geo_bayesian_results.json (optional)
+        brand_name     : brand name for the narrative
+        model_name     : LLM model
+        provider       : 'anthropic' or 'openai'
+
+    Returns:
+        Formatted geo insight narrative string
+    """
+    import yaml
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+    with open(geo_ols_path) as f:
+        geo_ols = json.load(f)
+    with open(geo_opt_path) as f:
+        geo_opt = json.load(f)
+
+    geo_bayes = None
+    if geo_bayes_path and os.path.exists(geo_bayes_path):
+        with open(geo_bayes_path) as f:
+            geo_bayes = json.load(f)
+
+    terr_config   = config.get("territories", {})
+    ols_terrs     = geo_ols.get("territories", {})
+    opt_terrs     = geo_opt.get("territory_allocation", {})
+    bayes_terrs   = (geo_bayes or {}).get("territories", {})
+    total_market  = sum(t.get("market_size", 0) for t in terr_config.values())
+
+    # ── National geo summary ──────────────────────────────────────────────────
+    avg_r2   = round(sum(t.get("r_squared_posterior_mean", t.get("r_squared", 0))
+                         for t in ols_terrs.values()) / max(len(ols_terrs), 1), 3)
+    uplift   = geo_opt.get("projected_territory_uplift_pct", 0)
+    n_terrs  = len(ols_terrs)
+
+    context = f"""
+Brand: {brand_name}  |  Analysis: Geo-level MMM across {n_terrs} US territories
+Bayesian per-territory: {"YES — 90% HDI included" if geo_bayes else "NO — Ridge only"}
+National total budget: ${geo_opt.get('total_national_budget_k', 0):,.0f}K / period
+Territory reallocation projected uplift: +{uplift:.1f}%
+Average territory R²: {avg_r2}
+
+National market size breakdown:
+{chr(10).join(
+    f"  {tc.get('label', tk):<14} market_size={tc.get('market_size', 0):,} "
+    f"({tc.get('market_size', 0)/total_market:.1%} of total)  "
+    f"spend_share={tc.get('spend_share', 0):.0%}  "
+    f"hcp_mult={tc.get('hcp_mult')}  dtc_mult={tc.get('dtc_mult')}"
+    for tk, tc in terr_config.items()
+)}
+"""
+
+    # ── Per-territory context blocks ──────────────────────────────────────────
+    context += "\n=== TERRITORY-BY-TERRITORY RESULTS ===\n"
+    for tk in sorted(ols_terrs.keys()):
+        context += _territory_context_block(
+            tk,
+            terr_config.get(tk, {}),
+            ols_terrs[tk],
+            opt_terrs.get(tk, {}),
+            bayes_terrs.get(tk) if geo_bayes else None,
+        )
+        context += "\n"
+
+    has_bayes_str = (
+        "Both Ridge and Bayesian (90% HDI) results are provided for all territories."
+        if geo_bayes
+        else "Only Ridge MMM results are provided (geo Bayesian was not run)."
+    )
+
+    llm = _build_llm(model_name, provider)
+    messages = [
+        SystemMessage(content=GEO_INSIGHT_SYSTEM_PROMPT),
+        HumanMessage(content=f"""
+Generate a complete geo strategy insight report for the pharma commercial leadership team.
+{has_bayes_str}
+
+{context}
+"""),
+    ]
+
+    response = llm.invoke(messages)
+    return response.content
+
+
+def run_geo_insight_agent(
+    data_dir: str = "data/raw",
+    config_path: str = "config/config.yaml",
+    freq: str = "weekly",
+) -> str:
+    """
+    Run the geo insight agent using territory-level MMM results.
+
+    Args:
+        data_dir    : directory containing the results JSON files
+        config_path : path to config.yaml
+        freq        : 'weekly' or 'monthly'
+
+    Returns:
+        Full geo insight narrative
+    """
+    import yaml
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+
+    brand_name = config.get("report", {}).get("pharma_brand_name", "VaxBrand")
+    model_name = config.get("llm", {}).get("model", "gpt-4o")
+    provider   = config.get("llm", {}).get("provider", "openai").lower()
+
+    prefix     = f"mmm_{freq}"
+    geo_ols    = f"{data_dir}/{prefix}_geo_ols_results.json"
+    geo_opt    = f"{data_dir}/{prefix}_geo_budget_optimized.json"
+    geo_bayes  = f"{data_dir}/{prefix}_geo_bayesian_results.json"
+
+    if not os.path.exists(geo_ols):
+        return f"Error: {geo_ols} not found. Run the geo pipeline first."
+    if not os.path.exists(geo_opt):
+        return f"Error: {geo_opt} not found. Run the geo optimizer first."
+
+    has_bayes = os.path.exists(geo_bayes)
+    print(f"\n🌍 Generating geo insight narrative for {brand_name} ({freq})...")
+    if has_bayes:
+        print("  ℹ️  Geo Bayesian results found — HDI credible intervals included")
+    else:
+        print("  ℹ️  No geo Bayesian results — run with --geo-bayesian for richer narrative")
+
+    narrative = generate_geo_insights(
+        geo_ols_path=geo_ols,
+        geo_opt_path=geo_opt,
+        config_path=config_path,
+        geo_bayes_path=geo_bayes if has_bayes else None,
+        brand_name=brand_name,
+        model_name=model_name,
+        provider=provider,
+    )
+
+    out_path = f"reports/{prefix}_geo_insights.md"
+    os.makedirs("reports", exist_ok=True)
+    with open(out_path, "w") as f:
+        f.write(f"# {brand_name} — Geo MMM Insight Report\n\n")
+        f.write(narrative)
+
+    print(f"✅ Geo insight report saved to {out_path}")
     return narrative
 
 

@@ -68,6 +68,13 @@ def load_geo_bayesian(freq):
     with open(path) as f:
         return json.load(f)
 
+def load_geo_narrative(freq):
+    path = f"reports/mmm_{freq}_geo_insights.md"
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        return f.read()
+
 def load_json(path):
     if os.path.exists(path):
         with open(path) as f:
@@ -120,6 +127,11 @@ def sidebar(config):
         value=False,
         help="Runs PyMC per territory after Geo Ridge. Adds HDI credible intervals.",
     )
+    run_geo_insights = st.sidebar.checkbox(
+        "Include Geo AI narrative",
+        value=False,
+        help="Requires ANTHROPIC_API_KEY or OPENAI_API_KEY in .env",
+    )
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("**LLM config**")
@@ -128,7 +140,7 @@ def sidebar(config):
         f"model    : {config['llm']['model']}",
         language=None,
     )
-    return freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes
+    return freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes, run_geo_insights
 
 
 def run_pipeline(freq, run_bayesian, run_insights):
@@ -535,7 +547,7 @@ def tab_budget(opt, config):
         )
 
 
-def run_geo_pipeline(freq, run_bayesian=False):
+def run_geo_pipeline(freq, run_bayesian=False, run_insights=False):
     with st.status("Running Geo MMM pipeline…", expanded=True) as status:
         from tools.geo_mmm_tool import run_geo_ols_mmm_tool
         from tools.geo_optimizer_tool import run_geo_budget_optimizer_tool
@@ -578,8 +590,151 @@ def run_geo_pipeline(freq, run_bayesian=False):
                 {"data_path": geo_path, "config_path": "config/config.yaml", "freq": freq}
             )
 
+        if run_insights:
+            from agents.insight_agent import run_geo_insight_agent
+            st.write("✍️ Generating geo AI narrative…")
+            run_geo_insight_agent(
+                data_dir="data/raw", config_path="config/config.yaml", freq=freq
+            )
+
         status.update(label="Geo pipeline complete!", state="complete")
     st.cache_data.clear()
+
+
+def _render_whatif_simulator(geo_opt: dict):
+    """Interactive territory budget simulator using ROI-weighted linear approximation."""
+    st.subheader("🎛️ What-if Budget Simulator")
+    st.caption(
+        "Shift budget between territories to preview estimated NRx impact. "
+        "Uses territory ROI efficiency as a linear approximation — saturation effects "
+        "mean actual returns diminish at very high spend."
+    )
+
+    alloc   = geo_opt.get("territory_allocation", {})
+    total_k = geo_opt.get("total_national_budget_k", 0.0)
+    if not alloc or total_k == 0:
+        st.info("Run the geo optimizer first to enable the simulator.")
+        return
+
+    terr_keys    = list(alloc.keys())
+    curr_budgets = {tk: alloc[tk]["current_budget_k"]  for tk in terr_keys}
+    roi_eff      = {tk: alloc[tk]["roi_efficiency"]     for tk in terr_keys}
+    labels       = {tk: alloc[tk]["label"]              for tk in terr_keys}
+    opt_budgets  = {tk: alloc[tk]["optimal_budget_k"]   for tk in terr_keys}
+
+    # ── Preset buttons — must run BEFORE sliders to seed session_state ─────────
+    b1, b2, _ = st.columns([1.3, 2.2, 4])
+    if b1.button("↺ Reset to current", key="whatif_btn_reset"):
+        for tk in terr_keys:
+            st.session_state[f"whatif_s_{tk}"] = float(round(curr_budgets[tk] / 5) * 5)
+    if b2.button("→ Apply optimizer recommendation", key="whatif_btn_opt"):
+        for tk in terr_keys:
+            st.session_state[f"whatif_s_{tk}"] = float(round(opt_budgets[tk] / 5) * 5)
+
+    # ── Sliders (3 columns × 2 rows) ──────────────────────────────────────────
+    sim_budgets = {}
+    slider_cols = st.columns(3)
+    for i, tk in enumerate(terr_keys):
+        col  = slider_cols[i % 3]
+        curr = curr_budgets[tk]
+        lo   = float(max(10.0, round(curr * 0.30 / 5) * 5))
+        hi   = float(round(min(total_k * 0.55, curr * 2.5) / 5) * 5)
+        lo   = min(lo, hi - 5)
+        default = float(round(curr / 5) * 5)
+        sim_budgets[tk] = col.slider(
+            labels[tk],
+            min_value=lo, max_value=hi,
+            value=default,
+            step=5.0,
+            format="$%.0fK",
+            key=f"whatif_s_{tk}",
+        )
+
+    # ── Budget balance indicator ───────────────────────────────────────────────
+    total_sim   = sum(sim_budgets.values())
+    remaining_k = total_k - total_sim
+    if abs(remaining_k) < 5:
+        st.success(f"Budget balanced: ${total_sim:,.0f}K allocated  ✓")
+    elif remaining_k > 0:
+        st.warning(
+            f"${remaining_k:,.0f}K unallocated — increase a territory or the "
+            "model will scale allocations proportionally."
+        )
+    else:
+        st.error(f"Over-budget by ${-remaining_k:,.0f}K — reduce a territory.")
+
+    # ── Scale to total_k for projection math (proportional if unbalanced) ─────
+    scale    = total_k / (total_sim + 1e-9)
+    norm_sim = {tk: sim_budgets[tk] * scale for tk in terr_keys}
+
+    # ── ROI-weighted linear response ──────────────────────────────────────────
+    base_resp = sum(roi_eff[tk] * curr_budgets[tk] for tk in terr_keys)
+    sim_resp  = sum(roi_eff[tk] * norm_sim[tk]      for tk in terr_keys)
+    uplift    = (sim_resp - base_resp) / (base_resp + 1e-9) * 100
+    opt_ceil  = geo_opt.get("projected_territory_uplift_pct", 0)
+
+    # ── KPI row ────────────────────────────────────────────────────────────────
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Simulated NRx uplift", f"{uplift:+.1f}%", delta="vs current allocation")
+    m2.metric("Optimizer ceiling (reference)", f"+{opt_ceil:.1f}%",
+              delta="SLSQP optimal", delta_color="off")
+    m3.metric(
+        "Unallocated budget",
+        f"${abs(remaining_k):,.0f}K",
+        delta="over-budget" if remaining_k < -5 else ("balanced" if abs(remaining_k) < 5 else "under-allocated"),
+        delta_color="inverse" if remaining_k < -5 else "off",
+    )
+
+    # ── Chart + table ─────────────────────────────────────────────────────────
+    rows = []
+    for tk in terr_keys:
+        delta_k       = norm_sim[tk] - curr_budgets[tk]
+        delta_scripts = roi_eff[tk] * delta_k
+        rows.append({
+            "Territory":      labels[tk],
+            "Current $K":     curr_budgets[tk],
+            "Simulated $K":   norm_sim[tk],
+            "delta_k":        delta_k,
+            "Est. Δ Scripts": round(delta_scripts),
+        })
+    sim_df = pd.DataFrame(rows)
+
+    chart_col, table_col = st.columns([3, 2])
+    with chart_col:
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            y=sim_df["Territory"], x=sim_df["Current $K"],
+            name="Current", orientation="h", marker_color="#CBD5E1",
+        ))
+        bar_colors = [
+            UP_CLR if d > 2 else (DOWN_CLR if d < -2 else NEUT_CLR)
+            for d in sim_df["delta_k"]
+        ]
+        fig.add_trace(go.Bar(
+            y=sim_df["Territory"], x=sim_df["Simulated $K"],
+            name="Simulated", orientation="h", marker_color=bar_colors,
+        ))
+        fig.update_layout(
+            barmode="overlay", height=300,
+            margin=dict(t=10, b=10, l=0, r=0),
+            xaxis_title="Budget $K / period",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    with table_col:
+        disp = sim_df[["Territory", "Current $K", "Simulated $K", "delta_k", "Est. Δ Scripts"]].copy()
+        disp.columns = ["Territory", "Current $K", "Simulated $K", "Δ $K", "Est. Δ Scripts"]
+        disp["Current $K"]     = disp["Current $K"].apply(lambda v: f"${v:,.0f}K")
+        disp["Simulated $K"]   = disp["Simulated $K"].apply(lambda v: f"${v:,.0f}K")
+        disp["Δ $K"]           = disp["Δ $K"].apply(lambda v: f"{v:+,.0f}K")
+        disp["Est. Δ Scripts"] = disp["Est. Δ Scripts"].apply(lambda v: f"{v:+,.0f}")
+        st.dataframe(disp, use_container_width=True, hide_index=True)
+
+    st.caption(
+        "Linear approximation: Δ Scripts ≈ ROI_efficiency × Δ Budget. "
+        "Saturation means gains slow at very high spend — use the SLSQP optimizer for rigorous bounds."
+    )
 
 
 def _render_geo_bayesian(geo_bayes: dict, config: dict):
@@ -717,7 +872,7 @@ def _render_geo_bayesian(geo_bayes: dict, config: dict):
     st.caption("Ridge ROI is not shown here; load geo OLS results alongside Bayesian to compare.")
 
 
-def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, config):
+def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_narrative, config):
     territories_cfg = config.get("territories", {})
 
     if geo_df is None:
@@ -998,6 +1153,29 @@ def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, config):
                     st.dataframe(ch_df.sort_values("ROI", ascending=False),
                                  use_container_width=True, hide_index=True)
 
+    # ── What-if simulator ─────────────────────────────────────────────────────
+    if geo_opt:
+        st.divider()
+        _render_whatif_simulator(geo_opt)
+
+    # ── Geo AI narrative ───────────────────────────────────────────────────────
+    st.divider()
+    st.header("📝 Geo AI Narrative")
+    if geo_narrative:
+        st.download_button(
+            "⬇ Download geo report (Markdown)",
+            data=geo_narrative,
+            file_name=f"geo_insights.md",
+            mime="text/markdown",
+        )
+        st.divider()
+        st.markdown(geo_narrative)
+    else:
+        st.info(
+            "Geo AI narrative not yet generated. "
+            "Check **Include Geo AI narrative** and click **🗺️ Run Geo Pipeline**."
+        )
+
 
 def tab_insights(freq):
     report_path = f"reports/mmm_{freq}_insights.md"
@@ -1025,14 +1203,14 @@ def tab_insights(freq):
 
 def main():
     config = load_config()
-    freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes = sidebar(config)
+    freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes, run_geo_insights = sidebar(config)
 
     if run_btn:
         run_pipeline(freq, run_bayesian, run_insights)
         st.rerun()
 
     if run_geo_btn:
-        run_geo_pipeline(freq, run_bayesian=run_geo_bayes)
+        run_geo_pipeline(freq, run_bayesian=run_geo_bayes, run_insights=run_geo_insights)
         st.rerun()
 
     prefix = f"data/raw/mmm_{freq}"
@@ -1041,9 +1219,10 @@ def main():
     ols    = load_json(f"{prefix}_ols_results.json")
     bayes  = load_json(f"{prefix}_bayesian_results.json")
     opt    = load_json(f"{prefix}_budget_optimized.json")
-    geo_ols   = load_json(f"{prefix}_geo_ols_results.json")
-    geo_opt   = load_json(f"{prefix}_geo_budget_optimized.json")
-    geo_bayes = load_geo_bayesian(freq)
+    geo_ols       = load_json(f"{prefix}_geo_ols_results.json")
+    geo_opt       = load_json(f"{prefix}_geo_budget_optimized.json")
+    geo_bayes     = load_geo_bayesian(freq)
+    geo_narrative = load_geo_narrative(freq)
 
     st.title("💊 Pharma MMM Agent")
     st.caption(
@@ -1075,7 +1254,7 @@ def main():
         tab_budget(opt, config)
 
     with tabs[4]:
-        tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, config)
+        tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_narrative, config)
 
     with tabs[5]:
         tab_insights(freq)
