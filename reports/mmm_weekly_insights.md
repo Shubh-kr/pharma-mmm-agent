@@ -1,33 +1,46 @@
 # VaxBrand — MMM Insight Report
 
 # VaxBrand MMM Strategic Insight Report
-### Prepared for: VP Commercial | Medical Affairs Lead | Brand Team
-### Model Period: 104 Weeks | Total Measured Budget: $99,442K
+### Vaccine Commercial Leadership | Confidential
 
 ---
 
 ## Executive Summary
 
-The VaxBrand MMM delivers high confidence results, with an R² of 0.928 and a MAPE of 4.18% across 104 weekly periods — model fit is strong and outputs are suitable for strategic budget decisions. The single most important finding is a severe misallocation of spend: **DTC Television consumes $25.5M (the largest single channel budget) yet returns only 0.28 ROI**, while **Speaker Bureau Programs generate a 0.63 ROI on just $4.2M** — less than one-sixth the investment. Three HCP and DTC channels (rep visits, medical congress, samples/co-pay coupons) show zero modelled contribution despite absorbing a combined **$39.1M**, representing the most urgent diagnostic and reallocation priority. The headline recommendation is to immediately rebalance the portfolio away from mass-reach DTC channels toward high-ROI HCP engagement and patient advocacy, with the optimiser projecting a **+65.7% uplift in scripts written** at the same total budget envelope of $99.4M.
+Both models confirm strong explanatory power for VaxBrand's NRx dynamics: the OLS Ridge model achieves an excellent fit (R² = 0.951, MAPE = 2.98% across 104 weekly periods), while the Bayesian model's lower R² (0.825, MAPE = 5.97%) is expected given more aggressive prior regularisation and is not a quality concern — MCMC convergence is confirmed (R̂ max = 1.001, 4 chains × 2,000 draws). The single most important finding is that **HCP peer-influence channels — Speaker Bureau Programs and Medical Congress & Symposia — are the highest-ROI tactics in the portfolio** (OLS ROIs of 0.63 and 0.73 respectively; Bayesian ROIs of 0.79 and 0.91), yet together receive only $106.4K/week (11.3% of budget), while DTC Television consumes $238.9K/week at a 0.28–0.35 ROI. A budget-neutral reallocation within the current $938.6K/week envelope — primarily rotating spend from DTC TV, Samples & Co-pay Coupons, and DTC Digital into Speaker Programs and Congress — is projected to deliver a **+59.4% NRx uplift** without incremental investment. The headline recommendation is to immediately initiate a phased reallocation of ~$550K/week from low-ROI broadcast and sampling channels into high-ROI HCP engagement tactics.
 
 ---
 
 ## Channel Performance Analysis
 
-### Top Performing Channels (HCP)
+### Top Performing Channels — HCP
 
-**Speaker Bureau Programs — ROI: 0.63 | Total Contribution: 201,685 scripts | 19.2% of mix**
+---
 
-At 0.63 ROI, Speaker Bureau is the single highest-returning paid channel in the entire VaxBrand portfolio. Peer-to-peer HCP education delivered through credible clinical voices is a well-established NRx driver in the vaccine category — it accelerates prescribing intent by reducing clinical uncertainty and building formulary confidence among hesitant prescribers. Despite this, the channel receives only **$4.2M (avg. $40.8K/week)**, making it structurally under-resourced relative to its demonstrated pull-through efficiency. The optimiser recommends scaling this channel to **$34.8M** — a $34.8M increase — which would represent the single largest reallocation in the plan. The brand team should immediately assess speaker network capacity, identify high-NRx target HCP segments (PCPs, pharmacists, and relevant specialists), and build a phased ramp plan to avoid quality dilution of the speaker programme.
+#### 1. Medical Congress & Symposia
+| Metric | OLS | Bayesian |
+|---|---|---|
+| Weekly Spend | $66.6K | $66.6K |
+| Estimated ROI | 0.728 | 0.910 |
+| Total Contribution | 17,064 scripts | 49,498 scripts |
+| Contribution % | 1.7% | 5.1% |
+| Bayesian 90% HDI | — | [3,397 – 134,748 scripts] |
+| Contribution Source | Model-identified ✓ | Bayesian posterior ✓ |
 
-**HCP Programmatic Digital — ROI: 0.392 | Total Contribution: 56,342 scripts | 5.4% of mix**
+**Why it performs:** Congress and symposia create concentrated, high-credibility peer-to-peer scientific exchange. For a vaccine brand, KOL endorsement at major infectious disease or immunology congresses drives protocol-level adoption — a single influential speaker can shift prescribing behaviour across an entire institution. The Bayesian ROI of **0.91** is the highest in the portfolio, and both models agree directionally. The wide HDI ([3.4K–134.7K]) reflects the episodic, lumpy nature of congress spend — high signal, high variance.
 
-At 0.392 ROI, HCP programmatic digital is the second-best performing HCP channel and is currently under-deployed at **$6.1M ($58.4K/week)**. Programmatic HCP targeting — reaching physicians via NPI-matched inventory on clinical platforms, EMR-adjacent placements, and medical publisher networks — offers scalable, measurable detailing reach between rep visits. The optimiser recommends increasing spend to **$11.9M (+$11.9M)**, which is a credible scale-up given the channel's digital infrastructure. The brand team should ensure creative assets are clinically differentiated (efficacy data, real-world evidence) rather than awareness-only, to sustain ROI at higher spend levels.
+**Recommendation:** Increase weekly allocation from $66.6K to $328.5K (+$261.9K/week, +393%). Prioritise spend concentration around 3–4 major annual congresses (e.g., ACIP, IDSA, AAFP) rather than spreading across minor events. Pair with pre-congress HCP digital warm-up to maximise pull-through.
 
-**Journal Advertising — ROI: 0.308 | Total Contribution: 53,262 scripts | 5.1% of mix**
+---
 
-Journal advertising delivers a 0.308 ROI — modest but positive — and contributes meaningfully to HCP SOV in the vaccine category. Its primary role is likely credibility reinforcement and top-of-mind awareness among specialist and academic prescribers rather than direct NRx conversion. At **$4.3M ($41.2K/week)**, it is appropriately sized but the optimiser flags a modest increase to **$2.0M optimal** — note this appears to be a floor allocation in the optimisation, suggesting the model treats this as a maintenance channel. Recommend retaining at current levels with creative refresh aligned to congress season to maximise contextual relevance.
+#### 2. Speaker Bureau Programs
+| Metric | OLS | Bayesian |
+|---|---|---|
+| Weekly Spend | $39.8K | $39.8K |
+| Estimated ROI | 0.630 | 0.787 |
+| Total Contribution | 128,756 scripts | 58,698 scripts |
+| Contribution % | 12.9% | 6.0% |
+| Bayesian 90% HDI | — | [3,879 – 153,573 scripts] |
+| Contribution Source | Model-identified ✓ | Bayesian posterior ✓ |
 
-**HCP Email Campaigns — ROI: 0.252 | Total Contribution: 50,750 scripts | 4.8% of mix**
-
-HCP email delivers a 0.252 ROI on a lean **$1.7M budget ($16.5K/week)** — the lowest absolute spend of any active HCP channel. The coefficient
+**Why it performs:** Speaker programs deliver peer detailing at scale — a trusted colleague presenting real-world VaxBrand outcomes is materially more persuasive than a field rep visit for vaccine adoption decisions, particularly among hesitant or high-volume prescribers. OLS contribution (12.9%) is notably higher than Bayesian (6.0%), likely because OLS captures some seasonality-correlated congress activity within this coefficient. The Bayesian estimate is the more conservative
