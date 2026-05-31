@@ -233,16 +233,17 @@ streamlit run app.py
 - [x] Two-level geo optimizer (channel mix + territory allocation)
 - [x] Geo tab in dashboard (choropleth, channel stacked bar, optimizer table)
 - [x] Separate territory budget corridors (1.30×/0.80×) vs channel corridors (2.50×/0.50×)
+- [x] Geo Bayesian MMM (PyMC per territory, 90% HDI, R̂ convergence diagnostics)
+- [x] Geo Bayesian dashboard section (Ridge vs Bayesian scatter, HDI error bars, uncertainty heatmap)
 
 ---
 
 ### In Progress / Current State 🔄
 
-The geo MMM layer is live and functional. All 6 territories fit at R² 0.895–0.958. The two-level optimizer recommends shifting budget toward Southeast (highest ROI efficiency at 0.378) and Northeast (HCP multiplier 1.20). Territory reallocation capped at ±30%/20% per planning cycle.
+The geo MMM layer (Ridge + Bayesian + optimizer) is fully live. All 6 territories fit at Ridge R² 0.895–0.958 and Bayesian R̂ ≤ 1.005. The Bayesian layer adds 90% HDI per channel and an uncertainty heatmap showing where the model is least confident (useful for lift test prioritisation). The two-level optimizer recommends shifting budget toward Southeast (highest ROI efficiency at 0.378) and Northeast (HCP multiplier 1.20), capped at ±30%/20% per planning cycle.
 
-Known limitations of the current geo model:
-- Each territory is modelled **independently** — no information sharing across territories. Mountain (smallest market, fewest observations) benefits least.
-- Geo layer is **Ridge-only** — no credible intervals on territory ROIs. A field team cannot see how confident the model is in Southeast's higher efficiency.
+Known limitations:
+- Each territory is modelled **independently** — no information sharing across territories. A hierarchical model would improve Mountain's estimates most.
 - Territory reallocation uses a **single efficiency score** (weighted avg ROI) — doesn't account for diminishing returns at the territory level.
 
 ---
@@ -251,7 +252,7 @@ Known limitations of the current geo model:
 
 #### Near-term (incremental improvements to existing geo layer)
 
-- [ ] **Geo Bayesian MMM** — Run PyMC per territory (or hierarchical across territories). Gives HDI on territory ROIs, critical for budget decisions where Southeast vs Northeast reallocation is close.
+- [x] **Geo Bayesian MMM** — PyMC per territory, 90% HDI per channel, R̂ convergence, Ridge vs Bayesian scatter, uncertainty heatmap. All 6 territories converge (R̂ ≤ 1.005) in ~2 min.
 - [ ] **Geo insight narrative** — Extend `insight_agent` to consume geo results and write a territory-level narrative (e.g. "Southeast underperforms its DTC multiplier — investigate creative quality").
 - [ ] **What-if geo simulator** — Dashboard sliders to manually shift territory budget shares and instantly preview projected script change without re-running the optimizer.
 - [ ] **Monthly geo pipeline** — `run.py --freq monthly --geo` works end-to-end but monthly geo results are not yet wired into the dashboard Geo tab (currently only loads weekly geo files).
