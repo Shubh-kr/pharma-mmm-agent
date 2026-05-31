@@ -1,312 +1,378 @@
 """
-Synthetic Pharma MMM Dataset Generator
-=======================================
+Synthetic Pharma MMM Dataset Generator — v2
+=============================================
 Vaccine Campaign — HCP + Patient Channels
-Generates enterprise-grade synthetic data for Marketing Mix Modelling.
+
+v2 fixes vs v1:
+  - Vaccine seasonality applied to ALL channels (HCP + DTC), not just DTC
+    → eliminates spurious DTC-outcome correlation from shared seasonality
+  - Congress pulses staggered per HCP channel
+    → breaks lockstep rep_visits / medical_congress / speaker_programs correlation
+  - rep_visits pulses in Aug (pre-season HCP push) + Oct (IDWeek)
+    → reps genuinely correlate with Sep-Nov outcome peak
+  - speaker_programs pulses 1 month post-congress (Mar/Jun/Nov)
+    → realistic: KOL programs deploy after recruitment at conference
+  - HCP channels are primary Rx drivers (higher ROI, 2-week detailing lag)
+  - Added competitor_spend — negative control variable (share erosion)
+  - Added price_index — quarterly co-pay step changes, negative on scripts
+  - Extra independent noise per channel to reduce collinearity
+
+Target data properties:
+  - rep_visits correlation with outcome: 0.45–0.60  (was 0.14)
+  - HCP channels correlate > DTC channels with outcome
+  - No channel with negative or near-zero correlation
+  - Competitor spend negatively correlated with scripts
+  - Media drives ~30–35% of total scripts (realistic pharma benchmark)
 
 Outputs:
-  - data/raw/mmm_weekly.csv   : 2 years of weekly data (104 rows)
-  - data/raw/mmm_monthly.csv  : 3 years of monthly data (36 rows)
-
-Channels (12 total):
-  HCP Channels (7):
-    1.  rep_visits          — Field sales rep detailing visits
-    2.  medical_congress    — Conference sponsorships & symposia
-    3.  journal_advertising — Print/digital journal ads (HCP-targeted)
-    4.  hcp_email           — Permission-based HCP email campaigns
-    5.  hcp_digital         — Programmatic HCP-targeted display
-    6.  speaker_programs    — KOL-led speaker bureau programs
-    7.  samples_coupons     — Sample drops & co-pay coupon programs
-
-  Patient / DTC Channels (5):
-    8.  dtc_tv              — Direct-to-consumer television
-    9.  dtc_digital         — Patient-facing digital / social
-    10. dtc_ooh             — Out-of-home (pharmacy, clinic)
-    11. patient_email       — CRM patient email / reminder programs
-    12. patient_advocacy    — Partnership with patient advocacy groups
-
-Outcome:
-    - scripts_written       — Weekly/monthly vaccine prescriptions (proxy)
-    - nrx_index             — Normalised new Rx index (0–100)
-
-Seasonality:
-    - Flu/vaccine season peak: Sep–Nov
-    - Summer trough: Jun–Aug
-    - Congress surge: Feb (ACIP), May (ASHP), Oct (IDWeek)
-
-Usage:
-    python scripts/generate_dataset.py
+  data/raw/mmm_weekly.csv   — 104 rows × 26 columns
+  data/raw/mmm_monthly.csv  — 36 rows  × 28 columns
+  data/raw/data_dictionary.csv
 """
 
 import numpy as np
 import pandas as pd
 from pathlib import Path
 
-# ── Reproducibility ──────────────────────────────────────────────────────────
 np.random.seed(42)
-
-# ── Output paths ─────────────────────────────────────────────────────────────
 OUTPUT_DIR = Path("data/raw")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# ── Channel config ────────────────────────────────────────────────────────────
-# Each channel: (base_spend_weekly_$K, roi_coefficient, adstock_decay, saturation_alpha)
+# ── Channel config ─────────────────────────────────────────────────────────────
+# roi: true causal weight used in the outcome-generating process
+# HCP ROIs intentionally higher than DTC for a vaccine brand:
+#   HCP detailing is the primary NRx lever; DTC drives patient pull-through only
 CHANNELS = {
-    # HCP channels
-    "rep_visits":         dict(base=180, roi=0.38, decay=0.6,  sat=0.55),
-    "medical_congress":   dict(base=60,  roi=0.52, decay=0.75, sat=0.45),
-    "journal_advertising":dict(base=40,  roi=0.22, decay=0.5,  sat=0.65),
-    "hcp_email":          dict(base=15,  roi=0.18, decay=0.35, sat=0.80),
-    "hcp_digital":        dict(base=55,  roi=0.28, decay=0.4,  sat=0.70),
-    "speaker_programs":   dict(base=35,  roi=0.45, decay=0.7,  sat=0.50),
-    "samples_coupons":    dict(base=90,  roi=0.33, decay=0.55, sat=0.60),
-    # Patient / DTC channels
-    "dtc_tv":             dict(base=220, roi=0.20, decay=0.5,  sat=0.75),
-    "dtc_digital":        dict(base=85,  roi=0.25, decay=0.38, sat=0.72),
-    "dtc_ooh":            dict(base=45,  roi=0.15, decay=0.45, sat=0.68),
-    "patient_email":      dict(base=12,  roi=0.16, decay=0.30, sat=0.82),
-    "patient_advocacy":   dict(base=20,  roi=0.35, decay=0.65, sat=0.55),
+    "rep_visits":          dict(base=180, roi=0.55, decay=0.60, sat=0.55, ch_type="hcp"),
+    "medical_congress":    dict(base=60,  roi=0.48, decay=0.75, sat=0.45, ch_type="hcp"),
+    "journal_advertising": dict(base=40,  roi=0.22, decay=0.50, sat=0.65, ch_type="hcp"),
+    "hcp_email":           dict(base=15,  roi=0.20, decay=0.35, sat=0.80, ch_type="hcp"),
+    "hcp_digital":         dict(base=55,  roi=0.30, decay=0.40, sat=0.70, ch_type="hcp"),
+    "speaker_programs":    dict(base=35,  roi=0.45, decay=0.70, sat=0.50, ch_type="hcp"),
+    "samples_coupons":     dict(base=90,  roi=0.35, decay=0.55, sat=0.60, ch_type="hcp"),
+    "dtc_tv":              dict(base=220, roi=0.18, decay=0.50, sat=0.75, ch_type="dtc"),
+    "dtc_digital":         dict(base=85,  roi=0.22, decay=0.38, sat=0.72, ch_type="dtc"),
+    "dtc_ooh":             dict(base=45,  roi=0.14, decay=0.45, sat=0.68, ch_type="dtc"),
+    "patient_email":       dict(base=12,  roi=0.15, decay=0.30, sat=0.82, ch_type="dtc"),
+    "patient_advocacy":    dict(base=20,  roi=0.32, decay=0.65, sat=0.55, ch_type="dtc"),
+}
+CHANNEL_NAMES = list(CHANNELS.keys())
+HCP_CHANNELS  = [c for c, v in CHANNELS.items() if v["ch_type"] == "hcp"]
+DTC_CHANNELS  = [c for c, v in CHANNELS.items() if v["ch_type"] == "dtc"]
+
+# Per-channel congress pulses {month: multiplier} — deliberately staggered
+# so HCP channels do NOT all spike in the same months
+CONGRESS_PULSES = {
+    # reps push hardest during IDWeek (Oct); seasonality handles the Sep-Nov lift
+    "rep_visits":       {10: 1.45},
+    # congress budget for ACIP (Feb) and ASHP (May) — academic HCP events only
+    "medical_congress": {2: 1.60, 5: 1.35},
+    # speaker programs deploy ~1 month AFTER congress (KOL recruitment lag)
+    "speaker_programs": {3: 1.40, 6: 1.30, 11: 1.35},
 }
 
-CHANNEL_NAMES = list(CHANNELS.keys())
+# Per-channel vaccine seasonality strength (0 = flat, 1 = full ±40%/–20%)
+# Rep-facing HCP channels intensify during flu season alongside patient demand
+# Congress-driven channels (medical_congress, speaker_programs) follow their
+# own calendar and are NOT seasonally indexed — this keeps them decorrelated
+SEASON_STRENGTH = {
+    "rep_visits":          0.85,   # reps push hard during flu season
+    "medical_congress":    0.00,   # congress-calendar driven, not seasonal
+    "journal_advertising": 0.00,   # planned quarterly, not seasonal
+    "hcp_email":           0.10,   # slight uptick in fall, mostly flat
+    "hcp_digital":         0.55,   # digital HCP push during vaccine season
+    "speaker_programs":    0.00,   # post-congress calendar, not seasonal
+    "samples_coupons":     0.50,   # sample drops increase before flu season
+    "dtc_tv":              0.40,   # DTC follows patient demand (moderate)
+    "dtc_digital":         0.40,
+    "dtc_ooh":             0.35,
+    "patient_email":       0.00,   # CRM is always-on, not seasonal
+    "patient_advocacy":    0.30,
+}
 
 
-# ── Helper functions ──────────────────────────────────────────────────────────
+# ── Math primitives ────────────────────────────────────────────────────────────
 
-def adstock(spend: np.ndarray, decay: float) -> np.ndarray:
-    """Geometric adstock transform — carries-over effect of past spend."""
-    adstocked = np.zeros_like(spend, dtype=float)
-    adstocked[0] = spend[0]
+def geometric_adstock(spend: np.ndarray, decay: float) -> np.ndarray:
+    result = np.zeros_like(spend, dtype=float)
+    result[0] = spend[0]
     for t in range(1, len(spend)):
-        adstocked[t] = spend[t] + decay * adstocked[t - 1]
-    return adstocked
+        result[t] = spend[t] + decay * result[t - 1]
+    return result
 
 
-def saturation(x: np.ndarray, alpha: float) -> np.ndarray:
-    """Hill / diminishing returns saturation transform."""
+def hill_saturation(x: np.ndarray, alpha: float) -> np.ndarray:
     x_norm = x / (x.max() + 1e-9)
     return x_norm ** alpha
 
 
-def vaccine_seasonality(dates: pd.DatetimeIndex) -> np.ndarray:
-    """
-    Vaccine-specific seasonal index:
-      - Flu season peak Sep–Nov (+40%)
-      - Summer trough Jun–Aug (-20%)
-      - Q1 moderate (+10%)
-    """
-    month = dates.month
+# ── Seasonal index builders ────────────────────────────────────────────────────
+
+def vaccine_season_index(dates: pd.DatetimeIndex, strength: float = 1.0) -> np.ndarray:
+    """Sep–Nov +40%, Jun–Aug –20%, Jan–Mar +10%."""
+    m = np.array(dates.month)
     idx = np.ones(len(dates))
-    idx = np.where((month >= 9) & (month <= 11), idx * 1.40, idx)
-    idx = np.where((month >= 6) & (month <= 8),  idx * 0.80, idx)
-    idx = np.where((month >= 1) & (month <= 3),  idx * 1.10, idx)
+    idx[(m >= 9) & (m <= 11)] *= 1 + 0.40 * strength
+    idx[(m >= 6) & (m <= 8)]  *= 1 - 0.20 * strength
+    idx[(m >= 1) & (m <= 3)]  *= 1 + 0.10 * strength
     return idx
 
 
-def congress_pulse(dates: pd.DatetimeIndex) -> np.ndarray:
-    """
-    Spike rep_visits / congress spend around key medical conferences:
-    Feb (ACIP), May (ASHP), Oct (IDWeek).
-    """
-    month = dates.month
-    pulse = np.ones(len(dates))
-    pulse = np.where(month == 2,  pulse * 1.55, pulse)   # ACIP
-    pulse = np.where(month == 5,  pulse * 1.30, pulse)   # ASHP
-    pulse = np.where(month == 10, pulse * 1.45, pulse)   # IDWeek
-    return pulse
+
+def congress_index(dates: pd.DatetimeIndex, pulses: dict) -> np.ndarray:
+    m = np.array(dates.month)
+    idx = np.ones(len(dates))
+    for month, mult in pulses.items():
+        idx[m == month] *= mult
+    return idx
 
 
-def spend_noise(n: int, cv: float = 0.15) -> np.ndarray:
-    """Realistic spend variability — campaigns don't run at exactly budget."""
-    return np.random.lognormal(0, cv, n)
-
+# ── Spend generator ────────────────────────────────────────────────────────────
 
 def generate_spend(dates: pd.DatetimeIndex, ch: str, cfg: dict,
                    freq: str = "W") -> np.ndarray:
-    """Generate realistic spend series for a single channel."""
     n = len(dates)
-    scale = 1.0 if freq == "W" else 4.3   # monthly ≈ 4.3 × weekly
+    scale = 1.0 if freq == "W" else 4.3   # monthly ≈ 4.3× weekly
 
-    base = cfg["base"] * scale * spend_noise(n)
+    # Base spend with realistic week-to-week variability (CoV ~15%)
+    base = cfg["base"] * scale * np.random.lognormal(0, 0.15, n)
 
-    # Congress uplift for HCP channels
-    if ch in ("rep_visits", "medical_congress", "speaker_programs"):
-        base *= congress_pulse(dates)
+    # Per-channel vaccine seasonality (strength=0 means flat; see SEASON_STRENGTH)
+    strength = SEASON_STRENGTH.get(ch, 0.0)
+    if strength > 0:
+        base *= vaccine_season_index(dates, strength=strength)
 
-    # Vaccine seasonality for patient channels
-    if ch in ("dtc_tv", "dtc_digital", "dtc_ooh", "patient_advocacy"):
-        base *= vaccine_seasonality(dates) * 0.7 + 0.3
+    # Staggered congress pulses (per-channel, breaks HCP collinearity)
+    if ch in CONGRESS_PULSES:
+        base *= congress_index(dates, CONGRESS_PULSES[ch])
 
-    # Add occasional campaign bursts (2–3 per year)
-    burst_prob = 3 / 52 if freq == "W" else 3 / 12
-    bursts = np.random.binomial(1, burst_prob, n) * np.random.uniform(1.3, 2.0, n)
-    base *= (1 + bursts * 0.4)
+    # Random campaign bursts (~3 per year, +20–50% uplift)
+    burst_p = 3 / 52 if freq == "W" else 3 / 12
+    bursts   = np.random.binomial(1, burst_p, n) * np.random.uniform(0.20, 0.50, n)
+    base    *= (1 + bursts)
+
+    # Extra independent noise — further decorrelates channels
+    base *= np.random.lognormal(0, 0.10, n)
 
     return np.round(base, 2)
 
 
-def build_outcome(spend_df: pd.DataFrame, dates: pd.DatetimeIndex,
+# ── Control variable generators ────────────────────────────────────────────────
+
+def generate_competitor_spend(dates: pd.DatetimeIndex, freq: str = "W") -> np.ndarray:
+    """
+    Competing vaccine brand ($K/week or month).
+    Deliberately kept flat (no vaccine seasonality) so its negative effect
+    on scripts is visible in raw correlations — no seasonal confounding.
+    Negatively impacts scripts_written via competitive share erosion.
+    """
+    n     = len(dates)
+    scale = 1.0 if freq == "W" else 4.3
+    base  = 80 * scale * np.random.lognormal(0, 0.20, n)
+    burst_p = 2 / 52 if freq == "W" else 2 / 12
+    bursts   = np.random.binomial(1, burst_p, n) * np.random.uniform(0.40, 0.90, n)
+    base    *= (1 + bursts)
+    return np.round(base, 2)
+
+
+def generate_price_index(dates: pd.DatetimeIndex) -> np.ndarray:
+    """
+    Normalised co-pay / price index (100 = baseline, range 85–115).
+    Quarterly step changes simulate payer renegotiation cycles.
+    Higher value → fewer scripts (price elasticity modelled in outcome).
+    """
+    n        = len(dates)
+    quarters = dates.to_period("Q")
+    unique_q = sorted(set(quarters))
+    level    = 100.0
+    q_levels = {}
+    for q in unique_q:
+        step        = np.random.choice([-10, -5, 0, 5, 10])
+        level       = float(np.clip(level + step, 85, 115))
+        q_levels[q] = level
+    base = np.array([q_levels[q] for q in quarters], dtype=float)
+    base += np.random.normal(0, 1.5, n)   # small within-quarter noise
+    return np.round(base, 1)
+
+
+# ── Outcome model ──────────────────────────────────────────────────────────────
+
+def build_outcome(spend_df: pd.DataFrame,
+                  dates: pd.DatetimeIndex,
+                  competitor: np.ndarray,
+                  price_idx: np.ndarray,
                   freq: str = "W") -> np.ndarray:
     """
-    Simulate scripts_written from adstocked + saturated spend,
-    plus seasonality, trend, and noise.
+    Simulate scripts_written using a realistic pharma DGP:
+
+        scripts = (baseline × trend × season
+                   + HCP_contribution[t - lag]     <- 2-week conversion lag
+                   + DTC_contribution[t])
+                  × (1 - price_elasticity)
+                  - competitor_drag
+                  × noise
+
+    HCP lag: detailing visits convert to Rx in ~2 weeks (weekly) / 1 month (monthly)
+    DTC lag: immediate — patient pull-through happens same period
+    Media drives ~30–35% of total scripts (industry benchmark for pharma)
     """
-    n = len(dates)
-    contribution = np.zeros(n)
+    n   = len(dates)
+    LAG = 2 if freq == "W" else 1
+
+    hcp_contrib = np.zeros(n)
+    dtc_contrib = np.zeros(n)
 
     for ch, cfg in CHANNELS.items():
-        raw = spend_df[ch].values
-        ads = adstock(raw, cfg["decay"])
-        sat = saturation(ads, cfg["sat"])
-        contribution += cfg["roi"] * sat * cfg["base"]
+        raw    = spend_df[ch].values
+        ads    = geometric_adstock(raw, cfg["decay"])
+        sat    = hill_saturation(ads, cfg["sat"])
+        effect = cfg["roi"] * sat * cfg["base"]
+        if cfg["ch_type"] == "hcp":
+            # Shift contribution by LAG — detailing-to-Rx conversion lag
+            pad    = np.full(LAG, effect[:LAG].mean())
+            effect = np.concatenate([pad, effect[:-LAG]])
+            hcp_contrib += effect
+        else:
+            dtc_contrib += effect
 
-    # Baseline scripts (market size / brand equity)
-    baseline = 8000 if freq == "W" else 34000
+    # Competitor drag: adstocked competitor spend erodes ~3–6% of scripts at peak
+    comp_ads  = geometric_adstock(competitor, decay=0.5)
+    comp_sat  = hill_saturation(comp_ads, alpha=0.60)
+    comp_drag = 0.20 * comp_sat * 80   # calibrated to ~4–5% max erosion
 
-    # Long-run brand trend (+15% over period)
-    trend = np.linspace(1.0, 1.15, n)
+    # Price elasticity: ±15 points ≈ ∓4.5% scripts (elasticity –0.30)
+    price_eff = (price_idx - 100) / 100 * 0.30
 
-    # Vaccine seasonality on outcomes
-    season = vaccine_seasonality(dates)
+    baseline = 6000  if freq == "W" else 26000   # lower baseline → media matters more
+    trend    = np.linspace(1.0, 1.18, n)
+    season   = vaccine_season_index(dates)
+    noise    = np.random.normal(1.0, 0.035, n)
 
-    # Outcome noise
-    noise = np.random.normal(1.0, 0.04, n)
+    scripts = (
+        (
+            baseline * trend * season
+            + hcp_contrib * 22      # HCP drives ~38% of total scripts
+            + dtc_contrib * 7       # DTC drives  ~7% of total scripts
+        )
+        * (1 - price_eff)
+        - comp_drag * 30
+    ) * noise
 
-    scripts = (baseline * trend * season + contribution * 10) * noise
-    return np.round(scripts).astype(int)
+    return np.round(np.maximum(scripts, 500)).astype(int)
 
 
-# ── Weekly dataset (2 years = 104 weeks) ─────────────────────────────────────
+# ── Weekly dataset (2 years = 104 weeks) ──────────────────────────────────────
 
 def generate_weekly() -> pd.DataFrame:
     dates = pd.date_range(start="2022-01-03", periods=104, freq="W-MON")
-    df = pd.DataFrame({"date": dates})
-    df["year"] = dates.year
-    df["week"] = dates.isocalendar().week.astype(int)
-    df["month"] = dates.month
+    df    = pd.DataFrame({"date": dates})
+    df["year"]    = dates.year
+    df["week"]    = dates.isocalendar().week.astype(int)
+    df["month"]   = dates.month
     df["quarter"] = dates.quarter
 
     for ch, cfg in CHANNELS.items():
         df[ch] = generate_spend(dates, ch, cfg, freq="W")
 
-    df["total_spend"] = df[CHANNEL_NAMES].sum(axis=1).round(2)
-    df["scripts_written"] = build_outcome(df, dates, freq="W")
+    df["competitor_spend"] = generate_competitor_spend(dates, freq="W")
+    df["price_index"]      = generate_price_index(dates)
+    df["total_spend"]      = df[CHANNEL_NAMES].sum(axis=1).round(2)
+    df["scripts_written"]  = build_outcome(
+        df, dates, df["competitor_spend"].values, df["price_index"].values, freq="W"
+    )
     df["nrx_index"] = (
         (df["scripts_written"] - df["scripts_written"].min()) /
         (df["scripts_written"].max() - df["scripts_written"].min()) * 100
     ).round(2)
-
-    # Vaccine season flag
     df["vaccine_season"] = df["month"].isin([9, 10, 11]).astype(int)
-
-    # Congress week flag
-    df["congress_week"] = df["month"].isin([2, 5, 10]).astype(int)
-
+    df["congress_week"]  = df["month"].isin([2, 5, 10]).astype(int)
     return df
 
 
-# ── Monthly dataset (3 years = 36 months) ────────────────────────────────────
+# ── Monthly dataset (3 years = 36 months) ─────────────────────────────────────
 
 def generate_monthly() -> pd.DataFrame:
     dates = pd.date_range(start="2021-01-01", periods=36, freq="MS")
-    df = pd.DataFrame({"date": dates})
-    df["year"] = dates.year
-    df["month"] = dates.month
+    df    = pd.DataFrame({"date": dates})
+    df["year"]       = dates.year
+    df["month"]      = dates.month
     df["month_name"] = dates.strftime("%b")
-    df["quarter"] = dates.quarter
+    df["quarter"]    = dates.quarter
 
     for ch, cfg in CHANNELS.items():
         df[ch] = generate_spend(dates, ch, cfg, freq="M")
 
-    df["total_spend"] = df[CHANNEL_NAMES].sum(axis=1).round(2)
-    df["scripts_written"] = build_outcome(df, dates, freq="M")
+    df["competitor_spend"] = generate_competitor_spend(dates, freq="M")
+    df["price_index"]      = generate_price_index(dates)
+    df["total_spend"]      = df[CHANNEL_NAMES].sum(axis=1).round(2)
+    df["scripts_written"]  = build_outcome(
+        df, dates, df["competitor_spend"].values, df["price_index"].values, freq="M"
+    )
     df["nrx_index"] = (
         (df["scripts_written"] - df["scripts_written"].min()) /
         (df["scripts_written"].max() - df["scripts_written"].min()) * 100
     ).round(2)
-
     df["vaccine_season"] = df["month"].isin([9, 10, 11]).astype(int)
     df["congress_month"] = df["month"].isin([2, 5, 10]).astype(int)
 
-    # HCP vs DTC split summary columns (useful for quick analysis)
-    hcp_cols = ["rep_visits", "medical_congress", "journal_advertising",
-                "hcp_email", "hcp_digital", "speaker_programs", "samples_coupons"]
-    dtc_cols = ["dtc_tv", "dtc_digital", "dtc_ooh", "patient_email", "patient_advocacy"]
-
-    df["hcp_total_spend"] = df[hcp_cols].sum(axis=1).round(2)
-    df["dtc_total_spend"] = df[dtc_cols].sum(axis=1).round(2)
-
+    df["hcp_total_spend"] = df[HCP_CHANNELS].sum(axis=1).round(2)
+    df["dtc_total_spend"] = df[DTC_CHANNELS].sum(axis=1).round(2)
     return df
 
 
-# ── Data dictionary ───────────────────────────────────────────────────────────
+# ── Data dictionary ────────────────────────────────────────────────────────────
 
 def save_data_dictionary():
-    meta = {
-        "column": (
-            ["date", "year", "week/month", "quarter"] +
-            CHANNEL_NAMES +
-            ["total_spend", "scripts_written", "nrx_index",
-             "vaccine_season", "congress_week/month"]
-        ),
-        "type": (
-            ["date", "int", "int", "int"] +
-            ["float ($K spend)"] * 12 +
-            ["float ($K)", "int", "float (0-100)", "binary", "binary"]
-        ),
-        "description": (
-            [
-                "Week start date (Mon) or month start date",
-                "Calendar year",
-                "ISO week number / calendar month",
-                "Fiscal quarter (1-4)"
-            ] +
-            [
-                "HCP: Field rep detailing visits spend ($K)",
-                "HCP: Medical congress & symposia spend ($K)",
-                "HCP: Journal advertising spend ($K)",
-                "HCP: Permission email to HCPs spend ($K)",
-                "HCP: Programmatic HCP digital display spend ($K)",
-                "HCP: KOL speaker bureau programs spend ($K)",
-                "HCP: Sample drops & co-pay coupon spend ($K)",
-                "DTC: Television advertising spend ($K)",
-                "DTC: Digital & social patient advertising spend ($K)",
-                "DTC: Out-of-home advertising spend ($K)",
-                "DTC: Patient CRM email campaigns spend ($K)",
-                "DTC: Patient advocacy partnerships spend ($K)",
-            ] +
-            [
-                "Sum of all 12 channel spends ($K)",
-                "Vaccine prescriptions written (proxy outcome)",
-                "Normalised new Rx index, 0=min, 100=max over period",
-                "1 = Sep/Oct/Nov vaccine season, 0 = off-season",
-                "1 = congress month (Feb/May/Oct), 0 = otherwise"
-            ]
-        )
-    }
-    pd.DataFrame(meta).to_csv(OUTPUT_DIR / "data_dictionary.csv", index=False)
+    rows = [
+        ("date",              "date",            "Week start (Mon) or month start date"),
+        ("year",              "int",             "Calendar year"),
+        ("week / month",      "int",             "ISO week number / calendar month"),
+        ("quarter",           "int",             "Fiscal quarter (1–4)"),
+        ("rep_visits",        "float ($K)",      "HCP: Field rep detailing visits spend"),
+        ("medical_congress",  "float ($K)",      "HCP: Medical congress & symposia spend"),
+        ("journal_advertising","float ($K)",     "HCP: Journal advertising spend"),
+        ("hcp_email",         "float ($K)",      "HCP: Permission email to HCPs spend"),
+        ("hcp_digital",       "float ($K)",      "HCP: Programmatic HCP digital display spend"),
+        ("speaker_programs",  "float ($K)",      "HCP: KOL speaker bureau programs spend"),
+        ("samples_coupons",   "float ($K)",      "HCP: Sample drops & co-pay coupon spend"),
+        ("dtc_tv",            "float ($K)",      "DTC: Television advertising spend"),
+        ("dtc_digital",       "float ($K)",      "DTC: Digital & social patient advertising spend"),
+        ("dtc_ooh",           "float ($K)",      "DTC: Out-of-home advertising spend"),
+        ("patient_email",     "float ($K)",      "DTC: Patient CRM email campaigns spend"),
+        ("patient_advocacy",  "float ($K)",      "DTC: Patient advocacy partnerships spend"),
+        ("competitor_spend",  "float ($K)",      "Competing vaccine brand spend — model control; higher → fewer scripts"),
+        ("price_index",       "float (100=base)","Co-pay/price index; quarterly step-changes; higher → fewer scripts"),
+        ("total_spend",       "float ($K)",      "Sum of all 12 brand channel spends"),
+        ("scripts_written",   "int",             "Vaccine prescriptions written — outcome KPI"),
+        ("nrx_index",         "float (0–100)",   "Normalised new Rx index, 0=period min, 100=period max"),
+        ("vaccine_season",    "binary",          "1 = Sep/Oct/Nov vaccine season, 0 = off-season"),
+        ("congress_week/month","binary",         "1 = congress month (Feb/May/Oct), 0 = otherwise"),
+    ]
+    pd.DataFrame(rows, columns=["column", "type", "description"]).to_csv(
+        OUTPUT_DIR / "data_dictionary.csv", index=False
+    )
     print("  ✓ data_dictionary.csv saved")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("\n🔬 Pharma MMM Dataset Generator")
-    print("=" * 45)
+    print("\n🔬 Pharma MMM Dataset Generator v2")
+    print("=" * 50)
 
     print("\n[1/3] Generating weekly dataset (104 weeks, 2022–2023)...")
     weekly = generate_weekly()
     weekly.to_csv(OUTPUT_DIR / "mmm_weekly.csv", index=False)
-    print(f"  ✓ mmm_weekly.csv saved  — {weekly.shape[0]} rows × {weekly.shape[1]} cols")
-    print(f"  ✓ Spend range: ${weekly['total_spend'].min():.0f}K – ${weekly['total_spend'].max():.0f}K/week")
-    print(f"  ✓ Scripts range: {weekly['scripts_written'].min():,} – {weekly['scripts_written'].max():,}")
+    print(f"  ✓ mmm_weekly.csv   — {weekly.shape[0]} rows × {weekly.shape[1]} cols")
+    print(f"  ✓ Spend:   ${weekly['total_spend'].min():.0f}K – ${weekly['total_spend'].max():.0f}K / week")
+    print(f"  ✓ Scripts: {weekly['scripts_written'].min():,} – {weekly['scripts_written'].max():,}")
 
     print("\n[2/3] Generating monthly dataset (36 months, 2021–2023)...")
     monthly = generate_monthly()
     monthly.to_csv(OUTPUT_DIR / "mmm_monthly.csv", index=False)
-    print(f"  ✓ mmm_monthly.csv saved — {monthly.shape[0]} rows × {monthly.shape[1]} cols")
-    print(f"  ✓ Spend range: ${monthly['total_spend'].min():.0f}K – ${monthly['total_spend'].max():.0f}K/month")
-    print(f"  ✓ HCP vs DTC split: {monthly['hcp_total_spend'].mean():.0f}K vs {monthly['dtc_total_spend'].mean():.0f}K avg/month")
+    print(f"  ✓ mmm_monthly.csv  — {monthly.shape[0]} rows × {monthly.shape[1]} cols")
+    print(f"  ✓ Spend:   ${monthly['total_spend'].min():.0f}K – ${monthly['total_spend'].max():.0f}K / month")
+    print(f"  ✓ HCP vs DTC: ${monthly['hcp_total_spend'].mean():.0f}K vs ${monthly['dtc_total_spend'].mean():.0f}K avg/month")
 
     print("\n[3/3] Saving data dictionary...")
     save_data_dictionary()
