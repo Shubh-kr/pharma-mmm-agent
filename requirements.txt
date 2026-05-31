@@ -29,3 +29,6 @@ python-dotenv>=1.0.0
 # Notebooks
 jupyter>=1.0.0
 ipykernel>=6.0.0
+
+# Dashboard
+streamlit>=1.28.0
