@@ -121,13 +121,21 @@ Territory spend is scaled by `spend_share` (not `spend_share × n_territories`).
 
 `insight_agent.py` supports both providers. Set `llm.provider: anthropic` and `llm.model: claude-sonnet-4-6` in `config/config.yaml`. `analytics_agent.py` hardcodes `ChatOpenAI` — would need updating for Anthropic.
 
+`_build_llm()` sets `max_tokens=8096` for Anthropic — required because the geo narrative is long (6-territory deep-dives + 7 sections). Default LangChain Anthropic limit is 1024 and will truncate the report.
+
 Two narrative functions:
 - `run_insight_agent()` — national MMM narrative
 - `run_geo_insight_agent()` — geo/territory narrative (reads `*_geo_ols_results.json`, `*_geo_budget_optimized.json`, and optionally `*_geo_bayesian_results.json`)
 
+### What-if Budget Simulator (`app.py → _render_whatif_simulator`)
+
+Rendered inside the Geo tab between the optimizer expanders and the AI narrative. No LLM or re-running the optimizer — uses `roi_efficiency` values already in `*_geo_budget_optimized.json` as a linear proxy.
+
+Math: `Δ Scripts ≈ roi_efficiency[t] × Δ Budget[t]` summed across territories. Proportionally scales allocations to `total_national_budget_k` when the user over/under-allocates. Preset buttons seed `st.session_state[f"whatif_s_{tk}"]` before slider rendering — this is the correct Streamlit pattern for programmatic slider resets.
+
 ## Session progress (as of 2026-05-31)
 
-### Completed this session
+### Completed — previous sessions (merged to main via PR #1)
 - Geo dataset generator (6 US territories, long-format, correct spend/ROI/baseline scaling)
 - Geo Ridge MMM tool (`tools/geo_mmm_tool.py`) — per-territory, in-memory transforms
 - Two-level geo optimizer (`tools/geo_optimizer_tool.py`) — channel mix + territory allocation
@@ -138,21 +146,19 @@ Two narrative functions:
 - `PROJECT_STATUS.md` — full feature inventory and roadmap
 - PR workflow established: always use `feat/...` branch, never push directly to main
 
-### In progress (interrupted)
-- `feat/geo-insight-narrative` branch — geo AI narrative is ~90% implemented
-  - `GEO_INSIGHT_SYSTEM_PROMPT` written in `agents/insight_agent.py`
-  - `generate_geo_insights()` and `run_geo_insight_agent()` written
-  - `_territory_context_block()` helper written
-  - `run.py --geo-insights` flag added
-  - `app.py` sidebar checkbox + pipeline runner + loader + tab section added
-  - **Blocked at**: Python 3.9 `dict | None` type hint syntax error — fixed with bare `bayes_td` param
-  - **Next step**: verify imports (`python -c "from agents.insight_agent import run_geo_insight_agent"`), then run `python run.py --geo-insights --no-insights` to test end-to-end, then commit + PR
+### Completed — this session (on `feat/geo-insight-narrative`, PR #2 open)
+- **Geo AI narrative** — `GEO_INSIGHT_SYSTEM_PROMPT`, `generate_geo_insights()`, `run_geo_insight_agent()`, `_territory_context_block()` in `agents/insight_agent.py`; `--geo-insights` flag in `run.py`; sidebar checkbox + pipeline runner + Markdown display in `app.py`
+  - Bug fixed: `ChatAnthropic` default `max_tokens=1024` truncated the report → raised to `max_tokens=8096`
+  - Verified end-to-end: `python run.py --geo-insights --no-insights` → `reports/mmm_weekly_geo_insights.md` (164 lines, all 7 sections)
+- **What-if geo budget simulator** — `_render_whatif_simulator()` in `app.py`; 6 territory sliders, budget balance indicator, simulated NRx uplift KPI, overlay bar chart, delta table, preset buttons (reset / apply optimizer)
+  - Verified in browser: slider interaction, both presets, chart/table rendering all confirmed
+
+### In progress
+- Nothing currently in progress. PR #2 is open and ready for review.
 
 ## Next steps (roadmap order)
 
-1. **Finish geo insight narrative** (in-progress on `feat/geo-insight-narrative`)
-2. **What-if geo simulator** — dashboard sliders to shift territory budget shares and preview script change
-3. **Monthly geo pipeline in dashboard** — Geo tab currently only loads weekly geo files; add freq-aware loading
-4. **Hierarchical geo model** — shared national trend via PyMC hierarchical priors (improves Mountain estimates)
-5. **Territory × time interactions** — allow ROI multipliers to vary by season per territory
-6. **Response curves per territory** — visualise adstock+saturation curves by territory in dashboard
+1. **Monthly geo pipeline in dashboard** — Geo tab loads weekly geo files only; add freq-aware file loading so switching to "monthly" shows monthly geo results
+2. **Hierarchical geo model** — shared national trend via PyMC hierarchical priors (improves Mountain territory estimates which have the least data)
+3. **Territory × time interactions** — allow ROI multipliers to vary by season per territory
+4. **Response curves per territory** — visualise adstock+saturation curves by territory in dashboard
