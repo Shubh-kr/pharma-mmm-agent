@@ -134,8 +134,12 @@ bayesian_model:
 # ── Budget optimiser settings ───────────────────────────────
 optimizer:
   total_budget_multipliers: [0.80, 0.90, 1.00, 1.10, 1.20]
-  min_channel_share: 0.02     # no channel gets less than 2% of budget
-  max_channel_share: 0.35     # no channel gets more than 35% of budget
+  min_channel_share: 0.02           # portfolio floor: no channel < 2% of total budget
+  max_channel_share: 0.35           # portfolio ceiling: no channel > 35% of total budget
+  max_spend_increase_factor: 2.5    # per-channel corridor: cannot exceed 2.5× current spend
+  max_spend_decrease_factor: 0.5    # per-channel corridor: cannot fall below 50% of current spend
+  # Corridors model operational reality: you can't overnight 10× a speaker bureau
+  # (limited KOL capacity) or cut DTC TV 95% in one planning cycle (contracts, SOV).
 
 # ── Report settings ─────────────────────────────────────────
 report:

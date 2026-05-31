@@ -1,28 +1,38 @@
 {
-  "total_budget_k": 938.6,
-  "current_response_index": 332.952,
-  "optimal_response_index": 530.7829,
-  "projected_uplift_pct": 59.4,
+  "total_budget_k": 938.614423076923,
+  "current_response_index": 332.9571,
+  "optimal_response_index": 434.0174,
+  "projected_uplift_pct": 30.4,
   "allocations": [
-    {
-      "channel": "Speaker Bureau Programs",
-      "type": "hcp",
-      "current_spend_k": 39.8,
-      "optimal_spend_k": 328.5,
-      "change_k": 288.7,
-      "change_pct": 725.4,
-      "action": "Increase \u2191",
-      "fitted_roi": 0.63
-    },
     {
       "channel": "Medical Congress & Symposia",
       "type": "hcp",
       "current_spend_k": 66.6,
-      "optimal_spend_k": 328.5,
-      "change_k": 261.9,
-      "change_pct": 393.4,
+      "optimal_spend_k": 166.5,
+      "change_k": 99.9,
+      "change_pct": 150.0,
       "action": "Increase \u2191",
       "fitted_roi": 0.728
+    },
+    {
+      "channel": "Speaker Bureau Programs",
+      "type": "hcp",
+      "current_spend_k": 39.8,
+      "optimal_spend_k": 99.5,
+      "change_k": 59.7,
+      "change_pct": 150.0,
+      "action": "Increase \u2191",
+      "fitted_roi": 0.63
+    },
+    {
+      "channel": "Field Rep Visits",
+      "type": "hcp",
+      "current_spend_k": 205.9,
+      "optimal_spend_k": 327.6,
+      "change_k": 121.7,
+      "change_pct": 59.1,
+      "action": "Increase \u2191",
+      "fitted_roi": 0.532
     },
     {
       "channel": "Patient CRM Email",
@@ -55,62 +65,32 @@
       "fitted_roi": 0.21
     },
     {
-      "channel": "Field Rep Visits",
-      "type": "hcp",
-      "current_spend_k": 205.9,
-      "optimal_spend_k": 112.6,
-      "change_k": -93.3,
-      "change_pct": -45.3,
-      "action": "Reduce \u2193",
-      "fitted_roi": 0.532
-    },
-    {
       "channel": "Journal Advertising",
       "type": "hcp",
       "current_spend_k": 42.7,
-      "optimal_spend_k": 18.8,
-      "change_k": -23.9,
-      "change_pct": -56.0,
+      "optimal_spend_k": 21.3,
+      "change_k": -21.3,
+      "change_pct": -50.0,
       "action": "Reduce \u2193",
       "fitted_roi": 0.132
-    },
-    {
-      "channel": "Out-of-Home Advertising",
-      "type": "dtc",
-      "current_spend_k": 49.3,
-      "optimal_spend_k": 18.8,
-      "change_k": -30.5,
-      "change_pct": -61.9,
-      "action": "Reduce \u2193",
-      "fitted_roi": 0.09
     },
     {
       "channel": "HCP Programmatic Digital",
       "type": "hcp",
       "current_spend_k": 59.3,
-      "optimal_spend_k": 18.8,
-      "change_k": -40.6,
-      "change_pct": -68.4,
+      "optimal_spend_k": 29.7,
+      "change_k": -29.7,
+      "change_pct": -50.0,
       "action": "Reduce \u2193",
       "fitted_roi": 0.168
-    },
-    {
-      "channel": "DTC Digital & Social",
-      "type": "dtc",
-      "current_spend_k": 88.8,
-      "optimal_spend_k": 18.8,
-      "change_k": -70.1,
-      "change_pct": -78.9,
-      "action": "Reduce \u2193",
-      "fitted_roi": 0.15
     },
     {
       "channel": "Samples & Co-pay Coupons",
       "type": "hcp",
       "current_spend_k": 98.4,
-      "optimal_spend_k": 18.8,
-      "change_k": -79.7,
-      "change_pct": -80.9,
+      "optimal_spend_k": 49.2,
+      "change_k": -49.2,
+      "change_pct": -50.0,
       "action": "Reduce \u2193",
       "fitted_roi": 0.462
     },
@@ -118,11 +98,31 @@
       "channel": "DTC Television",
       "type": "dtc",
       "current_spend_k": 238.9,
-      "optimal_spend_k": 18.8,
-      "change_k": -220.1,
-      "change_pct": -92.1,
+      "optimal_spend_k": 119.5,
+      "change_k": -119.5,
+      "change_pct": -50.0,
       "action": "Reduce \u2193",
       "fitted_roi": 0.28
+    },
+    {
+      "channel": "DTC Digital & Social",
+      "type": "dtc",
+      "current_spend_k": 88.8,
+      "optimal_spend_k": 44.4,
+      "change_k": -44.4,
+      "change_pct": -50.0,
+      "action": "Reduce \u2193",
+      "fitted_roi": 0.15
+    },
+    {
+      "channel": "Out-of-Home Advertising",
+      "type": "dtc",
+      "current_spend_k": 49.3,
+      "optimal_spend_k": 24.6,
+      "change_k": -24.6,
+      "change_pct": -50.0,
+      "action": "Reduce \u2193",
+      "fitted_roi": 0.09
     }
   ]
 }

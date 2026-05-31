@@ -49,9 +49,13 @@ def run_budget_optimizer_tool(
         channels = config["channels"]
         ch_names = list(channels.keys())
         n_periods = 104 if freq == "weekly" else 36
-        opt_cfg = config["optimizer"]
+        opt_cfg   = config["optimizer"]
         min_share = opt_cfg["min_channel_share"]
         max_share = opt_cfg["max_channel_share"]
+        # Per-channel spend corridors — prevent extreme single-cycle reallocation.
+        # Reflects operational reality: KOL capacity, media contracts, SOV risk.
+        max_up   = opt_cfg.get("max_spend_increase_factor", 2.5)  # e.g. 2.5 = max 2.5× current
+        max_down = opt_cfg.get("max_spend_decrease_factor", 0.5)  # e.g. 0.5 = max 50% cut
 
         # Use FITTED roi from OLS results — not config priors
         fitted_roi = {}
@@ -74,7 +78,17 @@ def run_budget_optimizer_tool(
                 )
             return -total
 
-        bounds = [(total_budget_k * min_share, total_budget_k * max_share) for _ in ch_names]
+        # Per-channel corridor bounds: tighter of (portfolio share limit, spend corridor)
+        bounds = []
+        for ch in ch_names:
+            curr = current_spend[ch]
+            lo = max(total_budget_k * min_share, curr * max_down)
+            hi = min(total_budget_k * max_share, curr * max_up)
+            # Guard: lo must be ≤ hi (can occur when current spend is tiny)
+            if lo > hi:
+                lo = total_budget_k * min_share
+            bounds.append((lo, hi))
+
         constraints = [{"type": "eq", "fun": lambda x: np.sum(x) - total_budget_k}]
         x0 = np.array([current_spend[ch] for ch in ch_names])
         x0 = x0 / x0.sum() * total_budget_k
@@ -119,6 +133,7 @@ def run_budget_optimizer_tool(
         lines = [
             f"Budget Optimisation — Total: ${total_budget_k:,.0f}K ({freq})",
             f"Projected uplift in scripts_written: +{uplift:.1f}%",
+            f"Spend corridors: max +{(max_up-1)*100:.0f}% / max -{(1-max_down)*100:.0f}% per channel per cycle",
             "",
             f"{'Channel':<30} {'ROI':<7} {'Curr $K':<10} {'Optim $K':<11} {'Change':<10} Action",
             "-" * 80,
