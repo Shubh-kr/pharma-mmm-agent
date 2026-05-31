@@ -92,9 +92,8 @@ def run_ols_mmm_tool(data_path: str, config_path: str, freq: str = "weekly") -> 
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
 
-        # Ridge regression — alpha controls regularisation strength
-        # alpha=10 is a good default for MMM to prevent sign flips
-        model = Ridge(alpha=10.0, fit_intercept=True)
+        alpha = config["ols_model"].get("ridge_alpha", 1.0)
+        model = Ridge(alpha=alpha, fit_intercept=True)
         model.fit(X_scaled, y)
         y_pred = model.predict(X_scaled)
 
@@ -120,12 +119,35 @@ def run_ols_mmm_tool(data_path: str, config_path: str, freq: str = "weekly") -> 
         for i, ch in enumerate(channels):
             if f"{ch}_saturated" not in df.columns:
                 continue
-            sat_vals = df[f"{ch}_saturated"].values
-            raw_spend = df[ch].values
-
-            # Unscaled contribution
-            contrib = (ch_coefs[i] / (ch_scales[i] + 1e-9)) * sat_vals.sum()
+            sat_vals  = df[f"{ch}_saturated"].values
+            contrib   = (ch_coefs[i] / (ch_scales[i] + 1e-9)) * sat_vals.sum()
             contributions[ch] = max(contrib, 0.0)
+
+        # ── Prior-contribution floor ───────────────────────────────────────────
+        # When Ridge cannot separately identify a channel (zero coefficient),
+        # we estimate its contribution from the config prior_roi. This is standard
+        # MMM practice: model-identified channels take precedence; unidentifiable
+        # channels get a prior-weighted share, clearly flagged in the output.
+        #
+        # Why channels get zero in Ridge:
+        #   Monthly seasonality dummies (11 features) are collinear with seasonal
+        #   channels. Ridge attributes Sep-Nov variance to the dummies, leaving
+        #   nothing for those channels. Lowering alpha doesn't help — this is a
+        #   collinearity problem, not a regularisation problem. The Bayesian model
+        #   solves this properly with informative priors; here we apply a prior floor.
+        prior_weight = config["ols_model"].get("prior_contribution_weight", 0.15)
+        model_total  = sum(contributions.values())
+        zero_chs     = [ch for ch, c in contributions.items() if c < 1e-3]
+        contrib_source = {ch: "model" for ch in channels if ch in contributions}
+
+        if prior_weight > 0 and zero_chs and model_total > 0:
+            # Target: zero channels collectively get prior_weight fraction of total
+            prior_pool   = model_total * prior_weight / (1.0 - prior_weight)
+            prior_rois   = {ch: config["channels"][ch]["prior_roi"] for ch in zero_chs}
+            prior_sum    = sum(prior_rois.values()) + 1e-9
+            for ch in zero_chs:
+                contributions[ch]  = prior_pool * (prior_rois[ch] / prior_sum)
+                contrib_source[ch] = "prior_estimate"
 
         total_contribution = sum(contributions.values()) + 1e-9
 
@@ -133,30 +155,28 @@ def run_ols_mmm_tool(data_path: str, config_path: str, freq: str = "weekly") -> 
             if f"{ch}_saturated" not in df.columns:
                 continue
             raw_spend = df[ch].values
-            contrib = contributions.get(ch, 0.0)
+            contrib    = contributions.get(ch, 0.0)
             contrib_pct = contrib / total_contribution * 100
 
-            # Estimate ROI: scale model coefficient back to spend units
-            # Higher coef relative to spend = higher ROI
             coef_unscaled = ch_coefs[i] / (ch_scales[i] + 1e-9)
-            avg_sat = df[f"{ch}_saturated"].values.mean()
+            avg_sat   = df[f"{ch}_saturated"].values.mean()
             avg_spend = raw_spend.mean()
             estimated_roi = round(
                 float(coef_unscaled * avg_sat / (avg_spend + 1e-9) * 100), 3
             )
-            # Anchor to config prior with model adjustment — blend for stability
-            prior_roi = config["channels"][ch]["prior_roi"]
+            prior_roi   = config["channels"][ch]["prior_roi"]
             blended_roi = round(0.6 * prior_roi + 0.4 * min(estimated_roi, prior_roi * 2), 3)
 
             channel_results[ch] = {
-                "label": config["channels"][ch]["label"],
-                "channel_type": config["channels"][ch]["channel_type"],
+                "label":              config["channels"][ch]["label"],
+                "channel_type":       config["channels"][ch]["channel_type"],
                 "avg_weekly_spend_k": round(float(raw_spend.mean()), 1),
-                "total_spend_k": round(float(raw_spend.sum()), 1),
-                "model_coefficient": round(float(ch_coefs[i]), 4),
-                "estimated_roi": blended_roi,
+                "total_spend_k":      round(float(raw_spend.sum()), 1),
+                "model_coefficient":  round(float(ch_coefs[i]), 4),
+                "estimated_roi":      blended_roi,
                 "total_contribution": round(float(contrib), 1),
-                "contribution_pct": round(contrib_pct, 1),
+                "contribution_pct":   round(contrib_pct, 1),
+                "contribution_source": contrib_source.get(ch, "model"),
             }
 
         sorted_channels = sorted(
@@ -180,20 +200,32 @@ def run_ols_mmm_tool(data_path: str, config_path: str, freq: str = "weekly") -> 
         with open(out_path, "w") as f:
             json.dump(result, f, indent=2)
 
+        n_model = sum(1 for _, r in sorted_channels if r["contribution_source"] == "model")
+        n_prior = len(sorted_channels) - n_model
+
         summary_lines = [
             f"Ridge MMM Results (R²={r2:.3f}, MAPE={mape:.1f}%)",
             f"Observations: {len(y)} {freq} periods",
             f"Baseline scripts: {model.intercept_:,.0f}",
+            f"Channels: {n_model} model-identified, {n_prior} prior-estimated",
             "",
-            f"{'Channel':<30} {'Type':<5} {'Spend $K':<12} {'ROI':<8} {'Contribution%'}",
-            "-" * 72,
+            f"{'Channel':<30} {'Type':<5} {'Spend $K':<12} {'ROI':<8} {'Contribution%':<16} {'Source'}",
+            "-" * 85,
         ]
         for ch, res in sorted_channels:
+            src = "model" if res["contribution_source"] == "model" else "prior*"
             summary_lines.append(
                 f"{res['label']:<30} {res['channel_type']:<5} "
                 f"${res['total_spend_k']:<10,.0f} "
                 f"{res['estimated_roi']:<8.3f} "
-                f"{res['contribution_pct']}%"
+                f"{res['contribution_pct']:<16.1f} "
+                f"{src}"
+            )
+        if n_prior > 0:
+            summary_lines.append(
+                f"\n* prior-estimated: Ridge could not separately identify these channels"
+                f" (collinear with seasonality dummies). Contribution estimated from"
+                f" config prior_roi. See Bayesian model for full uncertainty quantification."
             )
         if control_coefs:
             summary_lines.append("\nControl variable coefficients (unscaled):")

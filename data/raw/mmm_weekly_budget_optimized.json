@@ -1,8 +1,8 @@
 {
   "total_budget_k": 938.614423076923,
-  "current_response_index": 318.9109,
-  "optimal_response_index": 462.1152,
-  "projected_uplift_pct": 44.9,
+  "current_response_index": 332.9571,
+  "optimal_response_index": 530.7911,
+  "projected_uplift_pct": 59.4,
   "allocations": [
     {
       "channel": "Speaker Bureau Programs",
@@ -15,14 +15,14 @@
       "fitted_roi": 0.63
     },
     {
-      "channel": "Field Rep Visits",
+      "channel": "Medical Congress & Symposia",
       "type": "hcp",
-      "current_spend_k": 205.9,
+      "current_spend_k": 66.6,
       "optimal_spend_k": 328.5,
-      "change_k": 122.6,
-      "change_pct": 59.5,
+      "change_k": 261.9,
+      "change_pct": 393.4,
       "action": "Increase \u2191",
-      "fitted_roi": 0.532
+      "fitted_roi": 0.728
     },
     {
       "channel": "Patient CRM Email",
@@ -45,16 +45,6 @@
       "fitted_roi": 0.108
     },
     {
-      "channel": "Samples & Co-pay Coupons",
-      "type": "hcp",
-      "current_spend_k": 98.4,
-      "optimal_spend_k": 112.6,
-      "change_k": 14.2,
-      "change_pct": 14.4,
-      "action": "Increase \u2191",
-      "fitted_roi": 0.462
-    },
-    {
       "channel": "Patient Advocacy Partnerships",
       "type": "dtc",
       "current_spend_k": 20.9,
@@ -63,6 +53,16 @@
       "change_pct": -10.0,
       "action": "Reduce \u2193",
       "fitted_roi": 0.21
+    },
+    {
+      "channel": "Field Rep Visits",
+      "type": "hcp",
+      "current_spend_k": 205.9,
+      "optimal_spend_k": 112.6,
+      "change_k": -93.3,
+      "change_pct": -45.3,
+      "action": "Reduce \u2193",
+      "fitted_roi": 0.532
     },
     {
       "channel": "Journal Advertising",
@@ -92,17 +92,7 @@
       "change_k": -40.6,
       "change_pct": -68.4,
       "action": "Reduce \u2193",
-      "fitted_roi": 0.392
-    },
-    {
-      "channel": "Medical Congress & Symposia",
-      "type": "hcp",
-      "current_spend_k": 66.6,
-      "optimal_spend_k": 18.8,
-      "change_k": -47.8,
-      "change_pct": -71.8,
-      "action": "Reduce \u2193",
-      "fitted_roi": 0.312
+      "fitted_roi": 0.168
     },
     {
       "channel": "DTC Digital & Social",
@@ -113,6 +103,16 @@
       "change_pct": -78.9,
       "action": "Reduce \u2193",
       "fitted_roi": 0.15
+    },
+    {
+      "channel": "Samples & Co-pay Coupons",
+      "type": "hcp",
+      "current_spend_k": 98.4,
+      "optimal_spend_k": 18.8,
+      "change_k": -79.7,
+      "change_pct": -80.9,
+      "action": "Reduce \u2193",
+      "fitted_roi": 0.462
     },
     {
       "channel": "DTC Television",

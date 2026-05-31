@@ -118,6 +118,10 @@ ols_model:
   competitor_control: true    # adds competitor_spend as control (expected negative coef)
   price_control: true         # adds price_index as control (expected negative coef)
   normalize_spend: true       # scale spend before fitting
+  ridge_alpha: 1.0            # regularisation strength; lower = less shrinkage
+  prior_contribution_weight: 0.15  # fraction of total contribution reserved for
+                                   # channels the model cannot separately identify;
+                                   # distributed by prior_roi — set 0 to disable
 
 # ── Bayesian model settings ─────────────────────────────────
 bayesian_model:
