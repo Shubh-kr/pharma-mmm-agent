@@ -28,6 +28,7 @@ if __name__ == "__main__":
     parser.add_argument("--freq",        default="weekly", choices=["weekly", "monthly"])
     parser.add_argument("--no-insights", action="store_true", help="Skip LLM narrative")
     parser.add_argument("--bayesian",    action="store_true", help="Also run Bayesian MMM (adds 2-5 min)")
+    parser.add_argument("--geo",         action="store_true", help="Also run geo-level MMM + optimizer")
     parser.add_argument("--quiet",       action="store_true")
     args = parser.parse_args()
 
@@ -50,3 +51,35 @@ if __name__ == "__main__":
         print("STRATEGIC INSIGHTS")
         print("=" * 60)
         print(results["insights"])
+
+    if args.geo:
+        import json
+        from tools.geo_mmm_tool import run_geo_ols_mmm_tool
+        from tools.geo_optimizer_tool import run_geo_budget_optimizer_tool
+
+        geo_path = f"data/raw/mmm_{args.freq}_geo.csv"
+        geo_ols_path = f"data/raw/mmm_{args.freq}_geo_ols_results.json"
+
+        print("\n" + "=" * 60)
+        print("GEO MMM")
+        print("=" * 60)
+        print(run_geo_ols_mmm_tool.invoke(
+            {"data_path": geo_path, "config_path": args.config, "freq": args.freq}
+        ))
+
+        with open(geo_ols_path) as f:
+            geo_results = json.load(f)
+        total_budget = round(sum(
+            t.get("avg_period_spend_k", 0)
+            for t in geo_results.get("territories", {}).values()
+        ), 1)
+
+        print("\n" + "=" * 60)
+        print("GEO BUDGET OPTIMISER")
+        print("=" * 60)
+        print(run_geo_budget_optimizer_tool.invoke({
+            "results_path":             geo_ols_path,
+            "config_path":              args.config,
+            "total_national_budget_k":  total_budget,
+            "freq":                     args.freq,
+        }))

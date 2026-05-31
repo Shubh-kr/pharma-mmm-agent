@@ -1,0 +1,816 @@
+{
+  "model": "Ridge MMM (per territory)",
+  "frequency": "weekly",
+  "territories": {
+    "midwest": {
+      "label": "Midwest",
+      "r_squared": 0.9582,
+      "mape_pct": 2.76,
+      "n_observations": 104,
+      "baseline_scripts": 1901.0,
+      "total_spend_k": 19694.6,
+      "avg_period_spend_k": 189.4,
+      "channels": {
+        "rep_visits": {
+          "label": "Field Rep Visits",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 41.7,
+          "total_spend_k": 4335.0,
+          "estimated_roi": 0.532,
+          "total_contribution": 47060.8,
+          "contribution_pct": 38.3,
+          "contribution_source": "model"
+        },
+        "medical_congress": {
+          "label": "Medical Congress & Symposia",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 14.2,
+          "total_spend_k": 1474.6,
+          "estimated_roi": 0.728,
+          "total_contribution": 2215.3,
+          "contribution_pct": 1.8,
+          "contribution_source": "model"
+        },
+        "journal_advertising": {
+          "label": "Journal Advertising",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 8.4,
+          "total_spend_k": 876.3,
+          "estimated_roi": 0.132,
+          "total_contribution": 2601.9,
+          "contribution_pct": 2.1,
+          "contribution_source": "prior_estimate"
+        },
+        "hcp_email": {
+          "label": "HCP Email Campaigns",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 3.3,
+          "total_spend_k": 342.3,
+          "estimated_roi": 0.108,
+          "total_contribution": 2128.9,
+          "contribution_pct": 1.7,
+          "contribution_source": "prior_estimate"
+        },
+        "hcp_digital": {
+          "label": "HCP Programmatic Digital",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 11.5,
+          "total_spend_k": 1197.5,
+          "estimated_roi": 0.168,
+          "total_contribution": 3311.6,
+          "contribution_pct": 2.7,
+          "contribution_source": "prior_estimate"
+        },
+        "speaker_programs": {
+          "label": "Speaker Bureau Programs",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 8.0,
+          "total_spend_k": 830.1,
+          "estimated_roi": 0.63,
+          "total_contribution": 18350.5,
+          "contribution_pct": 14.9,
+          "contribution_source": "model"
+        },
+        "samples_coupons": {
+          "label": "Samples & Co-pay Coupons",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 19.4,
+          "total_spend_k": 2019.4,
+          "estimated_roi": 0.198,
+          "total_contribution": 3902.9,
+          "contribution_pct": 3.2,
+          "contribution_source": "prior_estimate"
+        },
+        "dtc_tv": {
+          "label": "DTC Television",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 48.0,
+          "total_spend_k": 4995.1,
+          "estimated_roi": 0.12,
+          "total_contribution": 2365.4,
+          "contribution_pct": 1.9,
+          "contribution_source": "prior_estimate"
+        },
+        "dtc_digital": {
+          "label": "DTC Digital & Social",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 18.5,
+          "total_spend_k": 1923.4,
+          "estimated_roi": 0.35,
+          "total_contribution": 5593.9,
+          "contribution_pct": 4.5,
+          "contribution_source": "model"
+        },
+        "dtc_ooh": {
+          "label": "Out-of-Home Advertising",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 9.6,
+          "total_spend_k": 993.7,
+          "estimated_roi": 0.21,
+          "total_contribution": 24171.2,
+          "contribution_pct": 19.7,
+          "contribution_source": "model"
+        },
+        "patient_email": {
+          "label": "Patient CRM Email",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 2.5,
+          "total_spend_k": 259.9,
+          "estimated_roi": 0.224,
+          "total_contribution": 7159.3,
+          "contribution_pct": 5.8,
+          "contribution_source": "model"
+        },
+        "patient_advocacy": {
+          "label": "Patient Advocacy Partnerships",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 4.3,
+          "total_spend_k": 447.3,
+          "estimated_roi": 0.21,
+          "total_contribution": 4139.5,
+          "contribution_pct": 3.4,
+          "contribution_source": "prior_estimate"
+        }
+      },
+      "controls": {
+        "competitor_spend": -0.8414,
+        "price_index": 1.2562
+      }
+    },
+    "mountain": {
+      "label": "Mountain",
+      "r_squared": 0.949,
+      "mape_pct": 3.53,
+      "n_observations": 104,
+      "baseline_scripts": 797.0,
+      "total_spend_k": 7795.2,
+      "avg_period_spend_k": 75.0,
+      "channels": {
+        "rep_visits": {
+          "label": "Field Rep Visits",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 16.5,
+          "total_spend_k": 1712.9,
+          "estimated_roi": 0.532,
+          "total_contribution": 12433.1,
+          "contribution_pct": 20.8,
+          "contribution_source": "model"
+        },
+        "medical_congress": {
+          "label": "Medical Congress & Symposia",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 5.3,
+          "total_spend_k": 555.1,
+          "estimated_roi": 0.728,
+          "total_contribution": 10754.6,
+          "contribution_pct": 18.0,
+          "contribution_source": "model"
+        },
+        "journal_advertising": {
+          "label": "Journal Advertising",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 3.4,
+          "total_spend_k": 351.0,
+          "estimated_roi": 0.308,
+          "total_contribution": 5777.5,
+          "contribution_pct": 9.7,
+          "contribution_source": "model"
+        },
+        "hcp_email": {
+          "label": "HCP Email Campaigns",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 1.3,
+          "total_spend_k": 130.2,
+          "estimated_roi": 0.108,
+          "total_contribution": 1159.1,
+          "contribution_pct": 1.9,
+          "contribution_source": "prior_estimate"
+        },
+        "hcp_digital": {
+          "label": "HCP Programmatic Digital",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 4.9,
+          "total_spend_k": 505.4,
+          "estimated_roi": 0.168,
+          "total_contribution": 1803.0,
+          "contribution_pct": 3.0,
+          "contribution_source": "prior_estimate"
+        },
+        "speaker_programs": {
+          "label": "Speaker Bureau Programs",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 3.3,
+          "total_spend_k": 339.7,
+          "estimated_roi": 0.63,
+          "total_contribution": 3769.7,
+          "contribution_pct": 6.3,
+          "contribution_source": "model"
+        },
+        "samples_coupons": {
+          "label": "Samples & Co-pay Coupons",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 7.6,
+          "total_spend_k": 790.4,
+          "estimated_roi": 0.198,
+          "total_contribution": 2125.0,
+          "contribution_pct": 3.6,
+          "contribution_source": "prior_estimate"
+        },
+        "dtc_tv": {
+          "label": "DTC Television",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 19.0,
+          "total_spend_k": 1976.1,
+          "estimated_roi": 0.28,
+          "total_contribution": 13108.9,
+          "contribution_pct": 22.0,
+          "contribution_source": "model"
+        },
+        "dtc_digital": {
+          "label": "DTC Digital & Social",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 7.3,
+          "total_spend_k": 761.7,
+          "estimated_roi": 0.15,
+          "total_contribution": 1609.9,
+          "contribution_pct": 2.7,
+          "contribution_source": "prior_estimate"
+        },
+        "dtc_ooh": {
+          "label": "Out-of-Home Advertising",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 3.7,
+          "total_spend_k": 389.2,
+          "estimated_roi": 0.21,
+          "total_contribution": 4594.3,
+          "contribution_pct": 7.7,
+          "contribution_source": "model"
+        },
+        "patient_email": {
+          "label": "Patient CRM Email",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 1.0,
+          "total_spend_k": 104.3,
+          "estimated_roi": 0.224,
+          "total_contribution": 282.9,
+          "contribution_pct": 0.5,
+          "contribution_source": "model"
+        },
+        "patient_advocacy": {
+          "label": "Patient Advocacy Partnerships",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 1.7,
+          "total_spend_k": 179.2,
+          "estimated_roi": 0.21,
+          "total_contribution": 2253.8,
+          "contribution_pct": 3.8,
+          "contribution_source": "prior_estimate"
+        }
+      },
+      "controls": {
+        "competitor_spend": 3.234,
+        "price_index": -1.3026
+      }
+    },
+    "northeast": {
+      "label": "Northeast",
+      "r_squared": 0.9369,
+      "mape_pct": 2.96,
+      "n_observations": 104,
+      "baseline_scripts": 2403.0,
+      "total_spend_k": 21436.9,
+      "avg_period_spend_k": 206.1,
+      "channels": {
+        "rep_visits": {
+          "label": "Field Rep Visits",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 45.6,
+          "total_spend_k": 4740.3,
+          "estimated_roi": 0.532,
+          "total_contribution": 4803.9,
+          "contribution_pct": 2.2,
+          "contribution_source": "model"
+        },
+        "medical_congress": {
+          "label": "Medical Congress & Symposia",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 14.6,
+          "total_spend_k": 1518.9,
+          "estimated_roi": 0.728,
+          "total_contribution": 14094.1,
+          "contribution_pct": 6.4,
+          "contribution_source": "model"
+        },
+        "journal_advertising": {
+          "label": "Journal Advertising",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 9.1,
+          "total_spend_k": 947.5,
+          "estimated_roi": 0.132,
+          "total_contribution": 6351.7,
+          "contribution_pct": 2.9,
+          "contribution_source": "prior_estimate"
+        },
+        "hcp_email": {
+          "label": "HCP Email Campaigns",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 3.5,
+          "total_spend_k": 359.3,
+          "estimated_roi": 0.252,
+          "total_contribution": 6729.5,
+          "contribution_pct": 3.1,
+          "contribution_source": "model"
+        },
+        "hcp_digital": {
+          "label": "HCP Programmatic Digital",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 13.5,
+          "total_spend_k": 1400.5,
+          "estimated_roi": 0.168,
+          "total_contribution": 8084.0,
+          "contribution_pct": 3.7,
+          "contribution_source": "prior_estimate"
+        },
+        "speaker_programs": {
+          "label": "Speaker Bureau Programs",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 8.7,
+          "total_spend_k": 907.4,
+          "estimated_roi": 0.63,
+          "total_contribution": 60057.8,
+          "contribution_pct": 27.4,
+          "contribution_source": "model"
+        },
+        "samples_coupons": {
+          "label": "Samples & Co-pay Coupons",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 20.9,
+          "total_spend_k": 2176.5,
+          "estimated_roi": 0.198,
+          "total_contribution": 9527.6,
+          "contribution_pct": 4.3,
+          "contribution_source": "prior_estimate"
+        },
+        "dtc_tv": {
+          "label": "DTC Television",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 52.8,
+          "total_spend_k": 5492.7,
+          "estimated_roi": 0.28,
+          "total_contribution": 158.5,
+          "contribution_pct": 0.1,
+          "contribution_source": "model"
+        },
+        "dtc_digital": {
+          "label": "DTC Digital & Social",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 19.8,
+          "total_spend_k": 2060.5,
+          "estimated_roi": 0.35,
+          "total_contribution": 13827.4,
+          "contribution_pct": 6.3,
+          "contribution_source": "model"
+        },
+        "dtc_ooh": {
+          "label": "Out-of-Home Advertising",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 10.5,
+          "total_spend_k": 1088.4,
+          "estimated_roi": 0.09,
+          "total_contribution": 4330.7,
+          "contribution_pct": 2.0,
+          "contribution_source": "prior_estimate"
+        },
+        "patient_email": {
+          "label": "Patient CRM Email",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 2.7,
+          "total_spend_k": 277.4,
+          "estimated_roi": 0.096,
+          "total_contribution": 4619.5,
+          "contribution_pct": 2.1,
+          "contribution_source": "prior_estimate"
+        },
+        "patient_advocacy": {
+          "label": "Patient Advocacy Partnerships",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 4.5,
+          "total_spend_k": 467.5,
+          "estimated_roi": 0.49,
+          "total_contribution": 86839.1,
+          "contribution_pct": 39.6,
+          "contribution_source": "model"
+        }
+      },
+      "controls": {
+        "competitor_spend": -2.4674,
+        "price_index": -13.8952
+      }
+    },
+    "pacific": {
+      "label": "Pacific",
+      "r_squared": 0.9098,
+      "mape_pct": 3.34,
+      "n_observations": 104,
+      "baseline_scripts": 1924.0,
+      "total_spend_k": 15475.0,
+      "avg_period_spend_k": 148.8,
+      "channels": {
+        "rep_visits": {
+          "label": "Field Rep Visits",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 33.3,
+          "total_spend_k": 3460.4,
+          "estimated_roi": 0.228,
+          "total_contribution": 10947.4,
+          "contribution_pct": 6.6,
+          "contribution_source": "prior_estimate"
+        },
+        "medical_congress": {
+          "label": "Medical Congress & Symposia",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 10.8,
+          "total_spend_k": 1119.9,
+          "estimated_roi": 0.728,
+          "total_contribution": 22708.4,
+          "contribution_pct": 13.6,
+          "contribution_source": "model"
+        },
+        "journal_advertising": {
+          "label": "Journal Advertising",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 6.7,
+          "total_spend_k": 691.8,
+          "estimated_roi": 0.308,
+          "total_contribution": 15998.9,
+          "contribution_pct": 9.6,
+          "contribution_source": "model"
+        },
+        "hcp_email": {
+          "label": "HCP Email Campaigns",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 2.6,
+          "total_spend_k": 272.1,
+          "estimated_roi": 0.108,
+          "total_contribution": 5185.6,
+          "contribution_pct": 3.1,
+          "contribution_source": "prior_estimate"
+        },
+        "hcp_digital": {
+          "label": "HCP Programmatic Digital",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 9.3,
+          "total_spend_k": 969.4,
+          "estimated_roi": 0.392,
+          "total_contribution": 18755.7,
+          "contribution_pct": 11.2,
+          "contribution_source": "model"
+        },
+        "speaker_programs": {
+          "label": "Speaker Bureau Programs",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 6.4,
+          "total_spend_k": 662.4,
+          "estimated_roi": 0.63,
+          "total_contribution": 7368.4,
+          "contribution_pct": 4.4,
+          "contribution_source": "model"
+        },
+        "samples_coupons": {
+          "label": "Samples & Co-pay Coupons",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 15.1,
+          "total_spend_k": 1575.0,
+          "estimated_roi": 0.462,
+          "total_contribution": 15128.5,
+          "contribution_pct": 9.1,
+          "contribution_source": "model"
+        },
+        "dtc_tv": {
+          "label": "DTC Television",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 36.5,
+          "total_spend_k": 3795.7,
+          "estimated_roi": 0.28,
+          "total_contribution": 621.0,
+          "contribution_pct": 0.4,
+          "contribution_source": "model"
+        },
+        "dtc_digital": {
+          "label": "DTC Digital & Social",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 15.0,
+          "total_spend_k": 1558.1,
+          "estimated_roi": 0.35,
+          "total_contribution": 14005.2,
+          "contribution_pct": 8.4,
+          "contribution_source": "model"
+        },
+        "dtc_ooh": {
+          "label": "Out-of-Home Advertising",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 7.7,
+          "total_spend_k": 804.4,
+          "estimated_roi": 0.09,
+          "total_contribution": 4321.3,
+          "contribution_pct": 2.6,
+          "contribution_source": "prior_estimate"
+        },
+        "patient_email": {
+          "label": "Patient CRM Email",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 2.0,
+          "total_spend_k": 205.8,
+          "estimated_roi": 0.096,
+          "total_contribution": 4609.4,
+          "contribution_pct": 2.8,
+          "contribution_source": "prior_estimate"
+        },
+        "patient_advocacy": {
+          "label": "Patient Advocacy Partnerships",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 3.5,
+          "total_spend_k": 360.0,
+          "estimated_roi": 0.49,
+          "total_contribution": 47441.7,
+          "contribution_pct": 28.4,
+          "contribution_source": "model"
+        }
+      },
+      "controls": {
+        "competitor_spend": 0.6047,
+        "price_index": -12.5872
+      }
+    },
+    "southeast": {
+      "label": "Southeast",
+      "r_squared": 0.8955,
+      "mape_pct": 3.15,
+      "n_observations": 104,
+      "baseline_scripts": 1889.0,
+      "total_spend_k": 17492.2,
+      "avg_period_spend_k": 168.2,
+      "channels": {
+        "rep_visits": {
+          "label": "Field Rep Visits",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 36.3,
+          "total_spend_k": 3779.6,
+          "estimated_roi": 0.532,
+          "total_contribution": 26806.9,
+          "contribution_pct": 19.5,
+          "contribution_source": "model"
+        },
+        "medical_congress": {
+          "label": "Medical Congress & Symposia",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 12.2,
+          "total_spend_k": 1273.5,
+          "estimated_roi": 0.728,
+          "total_contribution": 14667.8,
+          "contribution_pct": 10.7,
+          "contribution_source": "model"
+        },
+        "journal_advertising": {
+          "label": "Journal Advertising",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 7.1,
+          "total_spend_k": 743.2,
+          "estimated_roi": 0.308,
+          "total_contribution": 16020.1,
+          "contribution_pct": 11.6,
+          "contribution_source": "model"
+        },
+        "hcp_email": {
+          "label": "HCP Email Campaigns",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 2.8,
+          "total_spend_k": 292.3,
+          "estimated_roi": 0.108,
+          "total_contribution": 4269.7,
+          "contribution_pct": 3.1,
+          "contribution_source": "prior_estimate"
+        },
+        "hcp_digital": {
+          "label": "HCP Programmatic Digital",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 11.3,
+          "total_spend_k": 1174.5,
+          "estimated_roi": 0.168,
+          "total_contribution": 6641.8,
+          "contribution_pct": 4.8,
+          "contribution_source": "prior_estimate"
+        },
+        "speaker_programs": {
+          "label": "Speaker Bureau Programs",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 7.2,
+          "total_spend_k": 746.4,
+          "estimated_roi": 0.63,
+          "total_contribution": 31031.2,
+          "contribution_pct": 22.6,
+          "contribution_source": "model"
+        },
+        "samples_coupons": {
+          "label": "Samples & Co-pay Coupons",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 17.9,
+          "total_spend_k": 1860.3,
+          "estimated_roi": 0.462,
+          "total_contribution": 14408.4,
+          "contribution_pct": 10.5,
+          "contribution_source": "model"
+        },
+        "dtc_tv": {
+          "label": "DTC Television",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 41.6,
+          "total_spend_k": 4331.4,
+          "estimated_roi": 0.28,
+          "total_contribution": 10766.6,
+          "contribution_pct": 7.8,
+          "contribution_source": "model"
+        },
+        "dtc_digital": {
+          "label": "DTC Digital & Social",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 17.0,
+          "total_spend_k": 1770.0,
+          "estimated_roi": 0.15,
+          "total_contribution": 5930.2,
+          "contribution_pct": 4.3,
+          "contribution_source": "prior_estimate"
+        },
+        "dtc_ooh": {
+          "label": "Out-of-Home Advertising",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 8.5,
+          "total_spend_k": 888.5,
+          "estimated_roi": 0.21,
+          "total_contribution": 2980.9,
+          "contribution_pct": 2.2,
+          "contribution_source": "model"
+        },
+        "patient_email": {
+          "label": "Patient CRM Email",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 2.2,
+          "total_spend_k": 233.6,
+          "estimated_roi": 0.096,
+          "total_contribution": 3795.3,
+          "contribution_pct": 2.8,
+          "contribution_source": "prior_estimate"
+        },
+        "patient_advocacy": {
+          "label": "Patient Advocacy Partnerships",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 3.8,
+          "total_spend_k": 398.9,
+          "estimated_roi": 0.49,
+          "total_contribution": 261.6,
+          "contribution_pct": 0.2,
+          "contribution_source": "model"
+        }
+      },
+      "controls": {
+        "competitor_spend": -3.3993,
+        "price_index": -5.5678
+      }
+    },
+    "southwest": {
+      "label": "Southwest",
+      "r_squared": 0.9165,
+      "mape_pct": 3.1,
+      "n_observations": 104,
+      "baseline_scripts": 1542.0,
+      "total_spend_k": 15652.9,
+      "avg_period_spend_k": 150.5,
+      "channels": {
+        "rep_visits": {
+          "label": "Field Rep Visits",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 33.1,
+          "total_spend_k": 3446.2,
+          "estimated_roi": 0.532,
+          "total_contribution": 32249.4,
+          "contribution_pct": 32.0,
+          "contribution_source": "model"
+        },
+        "medical_congress": {
+          "label": "Medical Congress & Symposia",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 10.9,
+          "total_spend_k": 1138.4,
+          "estimated_roi": 0.728,
+          "total_contribution": 14162.0,
+          "contribution_pct": 14.0,
+          "contribution_source": "model"
+        },
+        "journal_advertising": {
+          "label": "Journal Advertising",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 6.7,
+          "total_spend_k": 698.1,
+          "estimated_roi": 0.308,
+          "total_contribution": 2346.6,
+          "contribution_pct": 2.3,
+          "contribution_source": "model"
+        },
+        "hcp_email": {
+          "label": "HCP Email Campaigns",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 2.5,
+          "total_spend_k": 255.9,
+          "estimated_roi": 0.108,
+          "total_contribution": 2251.4,
+          "contribution_pct": 2.2,
+          "contribution_source": "prior_estimate"
+        },
+        "hcp_digital": {
+          "label": "HCP Programmatic Digital",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 9.6,
+          "total_spend_k": 997.2,
+          "estimated_roi": 0.392,
+          "total_contribution": 20607.0,
+          "contribution_pct": 20.4,
+          "contribution_source": "model"
+        },
+        "speaker_programs": {
+          "label": "Speaker Bureau Programs",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 6.5,
+          "total_spend_k": 672.2,
+          "estimated_roi": 0.27,
+          "total_contribution": 5628.4,
+          "contribution_pct": 5.6,
+          "contribution_source": "prior_estimate"
+        },
+        "samples_coupons": {
+          "label": "Samples & Co-pay Coupons",
+          "channel_type": "hcp",
+          "avg_period_spend_k": 15.8,
+          "total_spend_k": 1638.3,
+          "estimated_roi": 0.198,
+          "total_contribution": 4127.5,
+          "contribution_pct": 4.1,
+          "contribution_source": "prior_estimate"
+        },
+        "dtc_tv": {
+          "label": "DTC Television",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 38.2,
+          "total_spend_k": 3977.6,
+          "estimated_roi": 0.28,
+          "total_contribution": 2900.7,
+          "contribution_pct": 2.9,
+          "contribution_source": "model"
+        },
+        "dtc_digital": {
+          "label": "DTC Digital & Social",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 14.4,
+          "total_spend_k": 1493.2,
+          "estimated_roi": 0.15,
+          "total_contribution": 3126.9,
+          "contribution_pct": 3.1,
+          "contribution_source": "prior_estimate"
+        },
+        "dtc_ooh": {
+          "label": "Out-of-Home Advertising",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 7.5,
+          "total_spend_k": 779.2,
+          "estimated_roi": 0.21,
+          "total_contribution": 3948.1,
+          "contribution_pct": 3.9,
+          "contribution_source": "model"
+        },
+        "patient_email": {
+          "label": "Patient CRM Email",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 2.0,
+          "total_spend_k": 211.4,
+          "estimated_roi": 0.224,
+          "total_contribution": 1330.5,
+          "contribution_pct": 1.3,
+          "contribution_source": "model"
+        },
+        "patient_advocacy": {
+          "label": "Patient Advocacy Partnerships",
+          "channel_type": "dtc",
+          "avg_period_spend_k": 3.3,
+          "total_spend_k": 345.2,
+          "estimated_roi": 0.49,
+          "total_contribution": 8215.8,
+          "contribution_pct": 8.1,
+          "contribution_source": "model"
+        }
+      },
+      "controls": {
+        "competitor_spend": -2.7991,
+        "price_index": -2.7464
+      }
+    }
+  }
+}

@@ -140,6 +140,72 @@ optimizer:
   max_spend_decrease_factor: 0.5    # per-channel corridor: cannot fall below 50% of current spend
   # Corridors model operational reality: you can't overnight 10× a speaker bureau
   # (limited KOL capacity) or cut DTC TV 95% in one planning cycle (contracts, SOV).
+  max_territory_increase_factor: 1.30  # territory budget can grow max 30% per planning cycle
+  max_territory_decrease_factor: 0.80  # territory budget can fall max 20% per planning cycle
+  # Tighter than channel corridors: field infrastructure (reps, speaker KOLs, agency
+  # relationships) can't be redeployed across geographies as fast as media line-items.
+
+# ── Geo / territory settings ────────────────────────────────
+# market_size  : relative baseline NRx (index, not absolute)
+# spend_share  : fraction of national budget allocated to this territory
+# hcp_mult     : HCP channel ROI multiplier (>1 = more responsive than national avg)
+# dtc_mult     : DTC channel ROI multiplier
+# season_str   : vaccine seasonality strength (1.0 = national average)
+territories:
+  northeast:
+    label: "Northeast"
+    abbr: "NE"
+    states: ["NY", "PA", "NJ", "MA", "CT", "RI", "NH", "VT", "ME"]
+    market_size: 2200
+    spend_share: 0.22
+    hcp_mult: 1.20    # academic medical centres, high KOL density
+    dtc_mult: 0.90
+    season_str: 0.90
+  southeast:
+    label: "Southeast"
+    abbr: "SE"
+    states: ["FL", "GA", "SC", "NC", "VA", "TN", "AL", "MS", "AR", "LA"]
+    market_size: 1900
+    spend_share: 0.18
+    hcp_mult: 0.90
+    dtc_mult: 1.15    # higher TV consumption, strong DTC pull-through
+    season_str: 0.65  # milder winters, weaker flu season
+  midwest:
+    label: "Midwest"
+    abbr: "MW"
+    states: ["OH", "IN", "IL", "MI", "WI", "MN", "IA", "MO", "ND", "SD", "NE", "KS"]
+    market_size: 1800
+    spend_share: 0.20
+    hcp_mult: 1.00    # national benchmark
+    dtc_mult: 1.00
+    season_str: 1.10  # cold winters = stronger flu season
+  southwest:
+    label: "Southwest"
+    abbr: "SW"
+    states: ["TX", "OK", "NM", "AZ"]
+    market_size: 1500
+    spend_share: 0.16
+    hcp_mult: 0.85    # lower HCP density per capita
+    dtc_mult: 1.05
+    season_str: 0.70
+  mountain:
+    label: "Mountain"
+    abbr: "MT"
+    states: ["CO", "UT", "WY", "MT", "ID", "NV"]
+    market_size: 800
+    spend_share: 0.08
+    hcp_mult: 0.95
+    dtc_mult: 0.80    # fragmented media market
+    season_str: 1.20  # cold, high altitude = strong flu season
+  pacific:
+    label: "Pacific"
+    abbr: "PC"
+    states: ["CA", "OR", "WA", "AK", "HI"]
+    market_size: 2100
+    spend_share: 0.16
+    hcp_mult: 1.10    # integrated health systems, high digital HCP adoption
+    dtc_mult: 1.20    # strong digital DTC market
+    season_str: 0.65  # mild Pacific coast climate
 
 # ── Report settings ─────────────────────────────────────────
 report:

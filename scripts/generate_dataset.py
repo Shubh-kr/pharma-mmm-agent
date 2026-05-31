@@ -32,6 +32,7 @@ Outputs:
 
 import numpy as np
 import pandas as pd
+import yaml
 from pathlib import Path
 
 np.random.seed(42)
@@ -354,6 +355,129 @@ def save_data_dictionary():
     print("  ✓ data_dictionary.csv saved")
 
 
+# ── Geo dataset (long format: date × territory) ───────────────────────────────
+
+def build_geo_outcome(spend_df: pd.DataFrame,
+                      dates: pd.DatetimeIndex,
+                      competitor: np.ndarray,
+                      price_idx: np.ndarray,
+                      freq: str,
+                      channels_cfg: dict,
+                      baseline_scale: float,
+                      season_str: float) -> np.ndarray:
+    """
+    Same DGP as build_outcome() but parameterised for a territory:
+      - baseline_scale : market_size / avg_market_size
+      - season_str     : territory-specific vaccine season strength
+      - channels_cfg   : CHANNELS dict with ROI already scaled by hcp/dtc_mult
+    """
+    n   = len(dates)
+    LAG = 2 if freq == "W" else 1
+
+    hcp_contrib = np.zeros(n)
+    dtc_contrib = np.zeros(n)
+
+    for ch, cfg in channels_cfg.items():
+        raw    = spend_df[ch].values
+        ads    = geometric_adstock(raw, cfg["decay"])
+        sat    = hill_saturation(ads, cfg["sat"])
+        effect = cfg["roi"] * sat * cfg["base"]
+        if cfg["ch_type"] == "hcp":
+            pad    = np.full(LAG, effect[:LAG].mean())
+            effect = np.concatenate([pad, effect[:-LAG]])
+            hcp_contrib += effect
+        else:
+            dtc_contrib += effect
+
+    comp_ads  = geometric_adstock(competitor, decay=0.5)
+    comp_sat  = hill_saturation(comp_ads, alpha=0.60)
+    comp_drag = 0.20 * comp_sat * 80
+
+    price_eff = (price_idx - 100) / 100 * 0.30
+
+    national_baseline = 6000 if freq == "W" else 26000
+    baseline = national_baseline * baseline_scale
+    trend    = np.linspace(1.0, 1.18, n)
+    season   = vaccine_season_index(dates, strength=season_str)
+    noise    = np.random.normal(1.0, 0.035, n)
+
+    scripts = (
+        (
+            baseline * trend * season
+            + hcp_contrib * 22
+            + dtc_contrib * 7
+        )
+        * (1 - price_eff)
+        - comp_drag * 30 * baseline_scale
+    ) * noise
+
+    return np.round(np.maximum(scripts, 50)).astype(int)
+
+
+def _generate_geo(territories: dict, freq: str) -> pd.DataFrame:
+    if freq == "W":
+        dates = pd.date_range(start="2022-01-03", periods=104, freq="W-MON")
+    else:
+        dates = pd.date_range(start="2021-01-01", periods=36, freq="MS")
+
+    total_market = sum(t["market_size"] for t in territories.values())
+    all_dfs      = []
+
+    for terr_key, terr in territories.items():
+        df = pd.DataFrame({"date": dates})
+        df["territory"]       = terr_key
+        df["territory_label"] = terr["label"]
+        df["territory_abbr"]  = terr["abbr"]
+        df["year"]            = dates.year
+        df["month"]           = dates.month
+        df["quarter"]         = dates.quarter
+        if freq == "W":
+            df["week"] = dates.isocalendar().week.astype(int)
+
+        # Scale spend to territory's share of national budget
+        spend_factor = terr["spend_share"]
+
+        for ch, cfg in CHANNELS.items():
+            scaled_cfg = dict(cfg, base=cfg["base"] * spend_factor)
+            df[ch] = generate_spend(dates, ch, scaled_cfg, freq=freq)
+
+        df["competitor_spend"] = generate_competitor_spend(dates, freq=freq) * spend_factor
+        df["price_index"]      = generate_price_index(dates)
+        df["total_spend"]      = df[CHANNEL_NAMES].sum(axis=1).round(2)
+
+        # Apply hcp/dtc ROI multipliers AND scale base by spend_factor so that
+        # contribution = roi × saturation × base is proportional to territory spend
+        terr_channels = {
+            ch: dict(
+                cfg,
+                roi=cfg["roi"] * (terr["hcp_mult"] if cfg["ch_type"] == "hcp" else terr["dtc_mult"]),
+                base=cfg["base"] * spend_factor,
+            )
+            for ch, cfg in CHANNELS.items()
+        }
+        # baseline_scale = territory's share of national market
+        baseline_scale = terr["market_size"] / total_market
+
+        df["scripts_written"] = build_geo_outcome(
+            df, dates,
+            df["competitor_spend"].values,
+            df["price_index"].values,
+            freq=freq,
+            channels_cfg=terr_channels,
+            baseline_scale=baseline_scale,
+            season_str=terr["season_str"],
+        )
+        df["vaccine_season"] = df["month"].isin([9, 10, 11]).astype(int)
+        if freq == "W":
+            df["congress_week"]  = df["month"].isin([2, 5, 10]).astype(int)
+        else:
+            df["congress_month"] = df["month"].isin([2, 5, 10]).astype(int)
+
+        all_dfs.append(df)
+
+    return pd.concat(all_dfs, ignore_index=True)
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -374,10 +498,29 @@ if __name__ == "__main__":
     print(f"  ✓ Spend:   ${monthly['total_spend'].min():.0f}K – ${monthly['total_spend'].max():.0f}K / month")
     print(f"  ✓ HCP vs DTC: ${monthly['hcp_total_spend'].mean():.0f}K vs ${monthly['dtc_total_spend'].mean():.0f}K avg/month")
 
-    print("\n[3/3] Saving data dictionary...")
+    print("\n[3/5] Saving data dictionary...")
     save_data_dictionary()
+
+    with open("config/config.yaml") as f:
+        _cfg = yaml.safe_load(f)
+    territories = _cfg["territories"]
+
+    print("\n[4/5] Generating weekly geo dataset (104 weeks × 6 territories)...")
+    geo_weekly = _generate_geo(territories, freq="W")
+    geo_weekly.to_csv(OUTPUT_DIR / "mmm_weekly_geo.csv", index=False)
+    print(f"  ✓ mmm_weekly_geo.csv  — {geo_weekly.shape[0]} rows × {geo_weekly.shape[1]} cols")
+    for terr in geo_weekly["territory"].unique():
+        sub = geo_weekly[geo_weekly["territory"] == terr]
+        print(f"    {terr:<12} scripts: {sub['scripts_written'].min():,}–{sub['scripts_written'].max():,}/wk")
+
+    print("\n[5/5] Generating monthly geo dataset (36 months × 6 territories)...")
+    geo_monthly = _generate_geo(territories, freq="M")
+    geo_monthly.to_csv(OUTPUT_DIR / "mmm_monthly_geo.csv", index=False)
+    print(f"  ✓ mmm_monthly_geo.csv — {geo_monthly.shape[0]} rows × {geo_monthly.shape[1]} cols")
 
     print("\n✅ All datasets ready in data/raw/")
     print("   → mmm_weekly.csv")
     print("   → mmm_monthly.csv")
+    print("   → mmm_weekly_geo.csv")
+    print("   → mmm_monthly_geo.csv")
     print("   → data_dictionary.csv\n")

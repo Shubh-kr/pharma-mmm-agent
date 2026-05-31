@@ -53,6 +53,13 @@ def load_dataset(freq):
         return None
     return pd.read_csv(path, parse_dates=["date"])
 
+@st.cache_data
+def load_geo_dataset(freq):
+    path = f"data/raw/mmm_{freq}_geo.csv"
+    if not os.path.exists(path):
+        return None
+    return pd.read_csv(path, parse_dates=["date"])
+
 def load_json(path):
     if os.path.exists(path):
         with open(path) as f:
@@ -98,7 +105,8 @@ def sidebar(config):
     if run_insights and not has_key:
         st.sidebar.warning(f"Set {key_var} in .env to enable insights")
 
-    run_btn = st.sidebar.button("▶ Run Pipeline", type="primary", use_container_width=True)
+    run_btn     = st.sidebar.button("▶ Run Pipeline", type="primary", use_container_width=True)
+    run_geo_btn = st.sidebar.button("🗺️ Run Geo Pipeline", use_container_width=True)
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("**LLM config**")
@@ -107,7 +115,7 @@ def sidebar(config):
         f"model    : {config['llm']['model']}",
         language=None,
     )
-    return freq, run_bayesian, run_insights, run_btn
+    return freq, run_bayesian, run_insights, run_btn, run_geo_btn
 
 
 def run_pipeline(freq, run_bayesian, run_insights):
@@ -514,6 +522,273 @@ def tab_budget(opt, config):
         )
 
 
+def run_geo_pipeline(freq):
+    with st.status("Running Geo MMM pipeline…", expanded=True) as status:
+        from tools.geo_mmm_tool import run_geo_ols_mmm_tool
+        from tools.geo_optimizer_tool import run_geo_budget_optimizer_tool
+
+        geo_path = f"data/raw/mmm_{freq}_geo.csv"
+        geo_ols  = f"data/raw/mmm_{freq}_geo_ols_results.json"
+
+        if not os.path.exists(geo_path):
+            st.error(
+                f"`{geo_path}` not found. "
+                "Run `python scripts/generate_dataset.py` first to create geo data."
+            )
+            status.update(label="Geo pipeline failed.", state="error")
+            return
+
+        st.write("📊 Running Geo Ridge MMM (per territory)…")
+        run_geo_ols_mmm_tool.invoke(
+            {"data_path": geo_path, "config_path": "config/config.yaml", "freq": freq}
+        )
+
+        st.write("💰 Running Geo budget optimiser…")
+        with open(geo_ols) as f:
+            import json as _json
+            geo_results = _json.load(f)
+        total_budget = sum(
+            t.get("avg_period_spend_k", 0)
+            for t in geo_results.get("territories", {}).values()
+        )
+        run_geo_budget_optimizer_tool.invoke({
+            "results_path":             geo_ols,
+            "config_path":              "config/config.yaml",
+            "total_national_budget_k":  round(total_budget, 1),
+            "freq":                     freq,
+        })
+
+        status.update(label="Geo pipeline complete!", state="complete")
+    st.cache_data.clear()
+
+
+def tab_geo(geo_df, geo_ols, geo_opt, config):
+    territories_cfg = config.get("territories", {})
+
+    if geo_df is None:
+        st.info(
+            "Geo dataset not found. "
+            "Run `python scripts/generate_dataset.py` to create `mmm_*_geo.csv`."
+        )
+        return
+
+    # ── Run geo pipeline button ────────────────────────────────────────────────
+    if geo_ols is None:
+        st.info("Geo MMM results not found. Click **▶ Run Geo Pipeline** in the sidebar.")
+
+    if geo_ols is None and geo_opt is None:
+        return
+
+    # ── Build territory summary DF ─────────────────────────────────────────────
+    terr_rows = []
+    for tk, td in (geo_ols or {}).get("territories", {}).items():
+        t_cfg = territories_cfg.get(tk, {})
+        ch_data = td.get("channels", {})
+        top_ch_key = max(ch_data, key=lambda c: ch_data[c]["contribution_pct"], default=None)
+        top_ch_label = ch_data[top_ch_key]["label"] if top_ch_key else "—"
+        hcp_contrib = sum(
+            v["contribution_pct"] for v in ch_data.values() if v["channel_type"] == "hcp"
+        )
+        terr_rows.append({
+            "key":           tk,
+            "label":         td.get("label", tk),
+            "abbr":          t_cfg.get("abbr", tk[:2].upper()),
+            "r_squared":     td["r_squared"],
+            "mape_pct":      td["mape_pct"],
+            "baseline":      td["baseline_scripts"],
+            "total_spend_k": td["total_spend_k"],
+            "avg_spend_k":   td["avg_period_spend_k"],
+            "hcp_share_pct": round(hcp_contrib, 1),
+            "top_channel":   top_ch_label,
+            "market_size":   t_cfg.get("market_size", 0),
+            "hcp_mult":      t_cfg.get("hcp_mult", 1.0),
+            "dtc_mult":      t_cfg.get("dtc_mult", 1.0),
+            "season_str":    t_cfg.get("season_str", 1.0),
+            "states":        t_cfg.get("states", []),
+        })
+    terr_df = pd.DataFrame(terr_rows) if terr_rows else pd.DataFrame()
+
+    # ── Territory comparison KPIs ──────────────────────────────────────────────
+    if not terr_df.empty:
+        st.subheader("Territory overview")
+        cols = st.columns(len(terr_rows))
+        for col, row in zip(cols, terr_rows):
+            col.metric(
+                row["label"],
+                f"R²={row['r_squared']:.3f}",
+                delta=f"HCP {row['hcp_share_pct']:.0f}%",
+            )
+
+        col1, col2 = st.columns(2)
+
+        # Model fit per territory
+        with col1:
+            st.subheader("Model fit by territory")
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=terr_df["label"],
+                y=terr_df["r_squared"],
+                name="R²",
+                marker_color=HCP_CLR,
+                text=terr_df["r_squared"].apply(lambda v: f"{v:.3f}"),
+                textposition="outside",
+            ))
+            fig.update_layout(
+                height=300, margin=dict(t=10, b=10, l=0, r=0),
+                yaxis=dict(range=[0, 1.05], title="R²"),
+                xaxis_title=None,
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        # US choropleth — ROI multiplier (HCP) as proxy for territory responsiveness
+        with col2:
+            st.subheader("HCP responsiveness (US territories)")
+            state_rows = []
+            for _, row in terr_df.iterrows():
+                for state in row["states"]:
+                    state_rows.append({
+                        "state":    state,
+                        "hcp_mult": row["hcp_mult"],
+                        "label":    row["label"],
+                        "r2":       row["r_squared"],
+                    })
+            if state_rows:
+                sdf = pd.DataFrame(state_rows)
+                fig = px.choropleth(
+                    sdf,
+                    locations="state",
+                    locationmode="USA-states",
+                    color="hcp_mult",
+                    scope="usa",
+                    hover_name="label",
+                    hover_data={"state": True, "hcp_mult": ":.2f", "r2": ":.3f"},
+                    color_continuous_scale=[[0, "#DBEAFE"], [0.5, "#3B82F6"], [1, "#1E3A5F"]],
+                    labels={"hcp_mult": "HCP mult"},
+                    title=None,
+                )
+                fig.update_layout(
+                    height=300,
+                    margin=dict(t=0, b=0, l=0, r=0),
+                    coloraxis_colorbar=dict(title="HCP ROI<br>multiplier", thickness=12),
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption("Colour = territory HCP ROI multiplier vs national average (1.0 = avg)")
+
+    # ── Per-territory channel contributions ────────────────────────────────────
+    st.subheader("Channel contributions by territory")
+    geo_ols_terrs = (geo_ols or {}).get("territories", {})
+    if geo_ols_terrs:
+        terr_keys_sorted = sorted(geo_ols_terrs.keys())
+        ch_labels = {}
+        for td in geo_ols_terrs.values():
+            for ck, cv in td.get("channels", {}).items():
+                ch_labels[ck] = cv["label"]
+
+        contrib_rows = []
+        for tk in terr_keys_sorted:
+            td = geo_ols_terrs[tk]
+            label = td.get("label", tk)
+            for ck, cv in td.get("channels", {}).items():
+                contrib_rows.append({
+                    "territory": label,
+                    "channel": ch_labels.get(ck, ck),
+                    "channel_key": ck,
+                    "contribution_pct": cv["contribution_pct"],
+                    "channel_type": cv["channel_type"],
+                })
+        contrib_df = pd.DataFrame(contrib_rows)
+
+        ch_order = (
+            contrib_df.groupby("channel")["contribution_pct"]
+            .mean()
+            .sort_values(ascending=False)
+            .index.tolist()
+        )
+        fig = px.bar(
+            contrib_df,
+            x="territory",
+            y="contribution_pct",
+            color="channel",
+            category_orders={"channel": ch_order},
+            labels={"contribution_pct": "Contribution %", "territory": ""},
+            height=380,
+        )
+        fig.update_layout(
+            margin=dict(t=10, b=10, l=0, r=10),
+            legend=dict(title="Channel", orientation="h", yanchor="bottom",
+                        y=1.02, xanchor="left", x=0),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── Geo budget optimiser results ───────────────────────────────────────────
+    if geo_opt:
+        st.subheader("Geo budget optimiser")
+        alloc = geo_opt.get("territory_allocation", {})
+        terr_alloc_rows = []
+        for tk, ta in alloc.items():
+            terr_alloc_rows.append({
+                "Territory":        ta["label"],
+                "ROI efficiency":   ta["roi_efficiency"],
+                "Current share":    f"{ta['current_share']:.1%}",
+                "Optimal share":    f"{ta['optimal_share']:.1%}",
+                "Current $K":       ta["current_budget_k"],
+                "Optimal $K":       ta["optimal_budget_k"],
+                "Δ share":          f"{ta['change_pct']:+.1f}%",
+                "Chan uplift":      f"+{ta['projected_channel_uplift_pct']:.1f}%",
+                "Action":           ta["action"],
+            })
+
+        ta_df = pd.DataFrame(terr_alloc_rows)
+
+        col1, col2 = st.columns([3, 2])
+        with col1:
+            fig = go.Figure()
+            colors = [
+                UP_CLR if a["change_pct"] > 3 else (DOWN_CLR if a["change_pct"] < -3 else NEUT_CLR)
+                for a in alloc.values()
+            ]
+            labels_sorted = [a["label"] for a in alloc.values()]
+            curr_budgets  = [a["current_budget_k"] for a in alloc.values()]
+            opt_budgets   = [a["optimal_budget_k"] for a in alloc.values()]
+            fig.add_trace(go.Bar(name="Current",     x=curr_budgets, y=labels_sorted,
+                                 orientation="h", marker_color="#CBD5E1"))
+            fig.add_trace(go.Bar(name="Recommended", x=opt_budgets,  y=labels_sorted,
+                                 orientation="h", marker_color=colors))
+            fig.update_layout(
+                barmode="overlay", height=320,
+                margin=dict(t=10, b=10, l=0, r=0),
+                xaxis_title="Budget $K / period",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            st.dataframe(ta_df, use_container_width=True, hide_index=True, height=320)
+
+        c1, c2 = st.columns(2)
+        c1.metric(
+            "Territory reallocation uplift",
+            f"+{geo_opt['projected_territory_uplift_pct']:.1f}%",
+            delta="same national budget",
+        )
+        c2.metric("National budget", fmt_k(geo_opt["total_national_budget_k"]))
+
+        # Per-territory channel detail expanders
+        st.subheader("Per-territory channel recommendations")
+        for tk, ta in alloc.items():
+            with st.expander(f"{ta['label']} — channel uplift +{ta['projected_channel_uplift_pct']:.1f}%"):
+                ch_rows = ta.get("channel_allocations", [])
+                if ch_rows:
+                    ch_df = pd.DataFrame(ch_rows)[
+                        ["channel", "type", "fitted_roi",
+                         "current_spend_k", "optimal_spend_k", "change_pct", "action"]
+                    ].copy()
+                    ch_df.columns = ["Channel", "Type", "ROI", "Current $K", "Optimal $K", "Δ%", "Action"]
+                    ch_df["Δ%"] = ch_df["Δ%"].apply(lambda v: f"{v:+.1f}%")
+                    st.dataframe(ch_df.sort_values("ROI", ascending=False),
+                                 use_container_width=True, hide_index=True)
+
+
 def tab_insights(freq):
     report_path = f"reports/mmm_{freq}_insights.md"
     if not os.path.exists(report_path):
@@ -540,17 +815,24 @@ def tab_insights(freq):
 
 def main():
     config = load_config()
-    freq, run_bayesian, run_insights, run_btn = sidebar(config)
+    freq, run_bayesian, run_insights, run_btn, run_geo_btn = sidebar(config)
 
     if run_btn:
         run_pipeline(freq, run_bayesian, run_insights)
         st.rerun()
 
+    if run_geo_btn:
+        run_geo_pipeline(freq)
+        st.rerun()
+
     prefix = f"data/raw/mmm_{freq}"
-    df    = load_dataset(freq)
-    ols   = load_json(f"{prefix}_ols_results.json")
-    bayes = load_json(f"{prefix}_bayesian_results.json")
-    opt   = load_json(f"{prefix}_budget_optimized.json")
+    df     = load_dataset(freq)
+    geo_df = load_geo_dataset(freq)
+    ols    = load_json(f"{prefix}_ols_results.json")
+    bayes  = load_json(f"{prefix}_bayesian_results.json")
+    opt    = load_json(f"{prefix}_budget_optimized.json")
+    geo_ols = load_json(f"{prefix}_geo_ols_results.json")
+    geo_opt = load_json(f"{prefix}_geo_budget_optimized.json")
 
     st.title("💊 Pharma MMM Agent")
     st.caption(
@@ -559,10 +841,11 @@ def main():
         + (f"OLS R²={ols['r_squared']:.3f} | " if ols else "")
         + (f"Bayesian R̂={bayes['mcmc'].get('max_rhat','—')} | " if bayes else "")
         + (f"+{opt['projected_uplift_pct']:.1f}% projected uplift" if opt else "")
+        + (f"| Geo: {len((geo_ols or {}).get('territories', {}))} territories" if geo_ols else "")
     )
 
     tab_names = ["📈 Overview", "📊 Ridge MMM", "🧮 Bayesian MMM",
-                 "💰 Budget", "📝 Insights"]
+                 "💰 Budget", "🗺️ Geo", "📝 Insights"]
     tabs = st.tabs(tab_names)
 
     with tabs[0]:
@@ -581,6 +864,9 @@ def main():
         tab_budget(opt, config)
 
     with tabs[4]:
+        tab_geo(geo_df, geo_ols, geo_opt, config)
+
+    with tabs[5]:
         tab_insights(freq)
 
 
