@@ -115,6 +115,8 @@ ols_model:
   fit_intercept: true
   seasonality_dummies: true   # adds month dummies as controls
   congress_control: true      # adds congress_week/month as control
+  competitor_control: true    # adds competitor_spend as control (expected negative coef)
+  price_control: true         # adds price_index as control (expected negative coef)
   normalize_spend: true       # scale spend before fitting
 
 # ── Bayesian model settings ─────────────────────────────────

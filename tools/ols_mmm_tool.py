@@ -18,6 +18,11 @@ from sklearn.metrics import r2_score
 
 
 def _build_feature_matrix(df, channels, config, freq):
+    """
+    Returns (X, feature_cols, n_channel_cols).
+    n_channel_cols marks where media channel features end in X —
+    everything after is a control variable whose coefficient is allowed to be negative.
+    """
     feature_cols = []
     X_parts = []
 
@@ -30,6 +35,7 @@ def _build_feature_matrix(df, channels, config, freq):
     if not X_parts:
         raise ValueError("No saturated features found. Run apply_all_transforms_tool first.")
 
+    n_channel_cols = len(feature_cols)
     X = np.hstack(X_parts)
 
     if config["ols_model"].get("seasonality_dummies", True):
@@ -42,7 +48,17 @@ def _build_feature_matrix(df, channels, config, freq):
         X = np.hstack([X, df[congress_col].values.reshape(-1, 1)])
         feature_cols.append("congress_flag")
 
-    return X, feature_cols
+    # Competitor spend — should carry a negative coefficient (share erosion)
+    if config["ols_model"].get("competitor_control", True) and "competitor_spend" in df.columns:
+        X = np.hstack([X, df["competitor_spend"].values.reshape(-1, 1)])
+        feature_cols.append("competitor_spend")
+
+    # Price index — should carry a negative coefficient (higher price → fewer Rx)
+    if config["ols_model"].get("price_control", True) and "price_index" in df.columns:
+        X = np.hstack([X, df["price_index"].values.reshape(-1, 1)])
+        feature_cols.append("price_index")
+
+    return X, feature_cols, n_channel_cols
 
 
 @tool
@@ -71,7 +87,7 @@ def run_ols_mmm_tool(data_path: str, config_path: str, freq: str = "weekly") -> 
         outcome_col = config["data"]["outcome_col"]
 
         y = df[outcome_col].values
-        X, feature_cols = _build_feature_matrix(df, channels, config, freq)
+        X, feature_cols, n_ch = _build_feature_matrix(df, channels, config, freq)
 
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
@@ -85,11 +101,18 @@ def run_ols_mmm_tool(data_path: str, config_path: str, freq: str = "weekly") -> 
         r2 = r2_score(y, y_pred)
         mape = np.mean(np.abs((y - y_pred) / (y + 1e-9))) * 100
 
-        # Clip negative channel coefficients to zero — standard MMM practice
-        # Negative coefs = multicollinearity artefact, not real negative ROI
-        ch_coefs = model.coef_[:len(channels)].copy()
-        ch_coefs = np.maximum(ch_coefs, 0)  # non-negativity constraint
-        ch_scales = scaler.scale_[:len(channels)]
+        # Media channel coefficients: non-negativity constraint (standard MMM practice)
+        # Negative media coefs = multicollinearity artefact, not real negative ROI
+        ch_coefs  = model.coef_[:n_ch].copy()
+        ch_coefs  = np.maximum(ch_coefs, 0)
+        ch_scales = scaler.scale_[:n_ch]
+
+        # Control variable coefficients: kept as-is (competitor/price should be negative)
+        control_coefs = {
+            fname: round(float(model.coef_[i] / (scaler.scale_[i] + 1e-9)), 4)
+            for i, fname in enumerate(feature_cols)
+            if fname in ("competitor_spend", "price_index")
+        }
 
         channel_results = {}
         contributions = {}
@@ -149,7 +172,8 @@ def run_ols_mmm_tool(data_path: str, config_path: str, freq: str = "weekly") -> 
             "r_squared": round(r2, 4),
             "mape_pct": round(mape, 2),
             "baseline_scripts": round(float(model.intercept_), 0),
-            "channels": dict(sorted_channels)
+            "channels": dict(sorted_channels),
+            "controls": control_coefs,
         }
 
         out_path = data_path.replace("_transformed.csv", "_ols_results.json")
@@ -171,6 +195,12 @@ def run_ols_mmm_tool(data_path: str, config_path: str, freq: str = "weekly") -> 
                 f"{res['estimated_roi']:<8.3f} "
                 f"{res['contribution_pct']}%"
             )
+        if control_coefs:
+            summary_lines.append("\nControl variable coefficients (unscaled):")
+            for ctrl, coef in control_coefs.items():
+                direction = "↓ suppresses scripts" if coef < 0 else "↑ (check sign)"
+                summary_lines.append(f"  {ctrl:<25} {coef:+.4f}  {direction}")
+
         summary_lines.append(f"\nFull results saved to: {out_path}")
         return "\n".join(summary_lines)
 
