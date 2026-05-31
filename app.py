@@ -68,6 +68,13 @@ def load_geo_bayesian(freq):
     with open(path) as f:
         return json.load(f)
 
+def load_geo_narrative(freq):
+    path = f"reports/mmm_{freq}_geo_insights.md"
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        return f.read()
+
 def load_json(path):
     if os.path.exists(path):
         with open(path) as f:
@@ -120,6 +127,11 @@ def sidebar(config):
         value=False,
         help="Runs PyMC per territory after Geo Ridge. Adds HDI credible intervals.",
     )
+    run_geo_insights = st.sidebar.checkbox(
+        "Include Geo AI narrative",
+        value=False,
+        help="Requires ANTHROPIC_API_KEY or OPENAI_API_KEY in .env",
+    )
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("**LLM config**")
@@ -128,7 +140,7 @@ def sidebar(config):
         f"model    : {config['llm']['model']}",
         language=None,
     )
-    return freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes
+    return freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes, run_geo_insights
 
 
 def run_pipeline(freq, run_bayesian, run_insights):
@@ -535,7 +547,7 @@ def tab_budget(opt, config):
         )
 
 
-def run_geo_pipeline(freq, run_bayesian=False):
+def run_geo_pipeline(freq, run_bayesian=False, run_insights=False):
     with st.status("Running Geo MMM pipeline…", expanded=True) as status:
         from tools.geo_mmm_tool import run_geo_ols_mmm_tool
         from tools.geo_optimizer_tool import run_geo_budget_optimizer_tool
@@ -576,6 +588,13 @@ def run_geo_pipeline(freq, run_bayesian=False):
             st.write("🧮 Running Geo Bayesian MMM (per territory, ~20 min)…")
             run_geo_bayesian_mmm_tool.invoke(
                 {"data_path": geo_path, "config_path": "config/config.yaml", "freq": freq}
+            )
+
+        if run_insights:
+            from agents.insight_agent import run_geo_insight_agent
+            st.write("✍️ Generating geo AI narrative…")
+            run_geo_insight_agent(
+                data_dir="data/raw", config_path="config/config.yaml", freq=freq
             )
 
         status.update(label="Geo pipeline complete!", state="complete")
@@ -717,7 +736,7 @@ def _render_geo_bayesian(geo_bayes: dict, config: dict):
     st.caption("Ridge ROI is not shown here; load geo OLS results alongside Bayesian to compare.")
 
 
-def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, config):
+def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_narrative, config):
     territories_cfg = config.get("territories", {})
 
     if geo_df is None:
@@ -998,6 +1017,25 @@ def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, config):
                     st.dataframe(ch_df.sort_values("ROI", ascending=False),
                                  use_container_width=True, hide_index=True)
 
+    # ── Geo AI narrative ───────────────────────────────────────────────────────
+    st.divider()
+    st.header("📝 Geo AI Narrative")
+    if geo_narrative:
+        freq_label = "weekly" if "weekly" in (geo_narrative[:200]) else ""
+        st.download_button(
+            "⬇ Download geo report (Markdown)",
+            data=geo_narrative,
+            file_name=f"geo_insights.md",
+            mime="text/markdown",
+        )
+        st.divider()
+        st.markdown(geo_narrative)
+    else:
+        st.info(
+            "Geo AI narrative not yet generated. "
+            "Check **Include Geo AI narrative** and click **🗺️ Run Geo Pipeline**."
+        )
+
 
 def tab_insights(freq):
     report_path = f"reports/mmm_{freq}_insights.md"
@@ -1025,14 +1063,14 @@ def tab_insights(freq):
 
 def main():
     config = load_config()
-    freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes = sidebar(config)
+    freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes, run_geo_insights = sidebar(config)
 
     if run_btn:
         run_pipeline(freq, run_bayesian, run_insights)
         st.rerun()
 
     if run_geo_btn:
-        run_geo_pipeline(freq, run_bayesian=run_geo_bayes)
+        run_geo_pipeline(freq, run_bayesian=run_geo_bayes, run_insights=run_geo_insights)
         st.rerun()
 
     prefix = f"data/raw/mmm_{freq}"
@@ -1041,9 +1079,10 @@ def main():
     ols    = load_json(f"{prefix}_ols_results.json")
     bayes  = load_json(f"{prefix}_bayesian_results.json")
     opt    = load_json(f"{prefix}_budget_optimized.json")
-    geo_ols   = load_json(f"{prefix}_geo_ols_results.json")
-    geo_opt   = load_json(f"{prefix}_geo_budget_optimized.json")
-    geo_bayes = load_geo_bayesian(freq)
+    geo_ols       = load_json(f"{prefix}_geo_ols_results.json")
+    geo_opt       = load_json(f"{prefix}_geo_budget_optimized.json")
+    geo_bayes     = load_geo_bayesian(freq)
+    geo_narrative = load_geo_narrative(freq)
 
     st.title("💊 Pharma MMM Agent")
     st.caption(
@@ -1075,7 +1114,7 @@ def main():
         tab_budget(opt, config)
 
     with tabs[4]:
-        tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, config)
+        tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_narrative, config)
 
     with tabs[5]:
         tab_insights(freq)

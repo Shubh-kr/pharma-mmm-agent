@@ -29,7 +29,8 @@ if __name__ == "__main__":
     parser.add_argument("--no-insights", action="store_true", help="Skip LLM narrative")
     parser.add_argument("--bayesian",    action="store_true", help="Also run Bayesian MMM (adds 2-5 min)")
     parser.add_argument("--geo",          action="store_true", help="Also run geo-level MMM + optimizer")
-    parser.add_argument("--geo-bayesian", action="store_true", help="Also run Bayesian MMM per territory (implies --geo, adds ~20 min)")
+    parser.add_argument("--geo-bayesian",  action="store_true", help="Also run Bayesian MMM per territory (implies --geo, adds ~20 min)")
+    parser.add_argument("--geo-insights",  action="store_true", help="Generate LLM geo insight narrative (implies --geo, needs API key)")
     parser.add_argument("--quiet",       action="store_true")
     args = parser.parse_args()
 
@@ -53,7 +54,7 @@ if __name__ == "__main__":
         print("=" * 60)
         print(results["insights"])
 
-    if args.geo or getattr(args, 'geo_bayesian', False):
+    if args.geo or getattr(args, 'geo_bayesian', False) or getattr(args, 'geo_insights', False):
         import json
         from tools.geo_mmm_tool import run_geo_ols_mmm_tool
         from tools.geo_optimizer_tool import run_geo_budget_optimizer_tool
@@ -93,4 +94,15 @@ if __name__ == "__main__":
         print("=" * 60)
         print(run_geo_bayesian_mmm_tool.invoke(
             {"data_path": geo_path, "config_path": args.config, "freq": args.freq}
+        ))
+
+    if getattr(args, 'geo_insights', False):
+        from agents.insight_agent import run_geo_insight_agent
+        print("\n" + "=" * 60)
+        print("GEO INSIGHT NARRATIVE")
+        print("=" * 60)
+        print(run_geo_insight_agent(
+            data_dir="data/raw",
+            config_path=args.config,
+            freq=args.freq,
         ))
