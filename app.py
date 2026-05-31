@@ -26,8 +26,10 @@ st.set_page_config(
 )
 
 # ── Colour palette ────────────────────────────────────────────────────────────
-HCP_CLR   = "#2563EB"
-DTC_CLR   = "#EA580C"
+HCP_CLR      = "#2563EB"
+DTC_CLR      = "#EA580C"
+HCP_CLR_FADE = "rgba(37,99,235,0.4)"
+DTC_CLR_FADE = "rgba(234,88,12,0.4)"
 UP_CLR    = "#16A34A"
 DOWN_CLR  = "#DC2626"
 NEUT_CLR  = "#6B7280"
@@ -58,10 +60,9 @@ def load_json(path):
     return None
 
 def ch_color(ch_name, source=None):
-    base = HCP_CLR if ch_name in HCP_CHANNELS else DTC_CLR
     if source == "prior_estimate":
-        return base + "80"   # 50% alpha in hex
-    return base
+        return HCP_CLR_FADE if ch_name in HCP_CHANNELS else DTC_CLR_FADE
+    return HCP_CLR if ch_name in HCP_CHANNELS else DTC_CLR
 
 def fmt_k(v):
     return f"${v:,.0f}K"
@@ -401,8 +402,8 @@ def tab_bayesian(bayes, ols, config):
                 y=merged["estimated_roi_bayes"],
                 mode="markers+text",
                 marker=dict(
-                    color=merged["channel"].apply(
-                        lambda c: HCP_CLR if c in HCP_CHANNELS else DTC_CLR),
+                    color=[HCP_CLR if c in HCP_CHANNELS else DTC_CLR
+                           for c in merged["channel"]],
                     size=10,
                 ),
                 text=merged["label"],
@@ -468,8 +469,10 @@ def tab_budget(opt, config):
     with col1:
         st.subheader("Current vs recommended spend")
         plot_df = alloc_df.copy()
-        plot_df["color"] = plot_df["change_pct"].apply(
-            lambda v: UP_CLR if v > 5 else (DOWN_CLR if v < -5 else NEUT_CLR))
+        plot_df["color"] = [
+            UP_CLR if v > 5 else (DOWN_CLR if v < -5 else NEUT_CLR)
+            for v in plot_df["change_pct"]
+        ]
         plot_df = plot_df.sort_values("optimal_spend_k", ascending=True)
 
         fig = go.Figure()
