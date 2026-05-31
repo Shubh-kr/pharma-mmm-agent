@@ -3,6 +3,8 @@
 > **An enterprise-grade, agentic Marketing Mix Modelling (MMM) pipeline built specifically for pharmaceutical and vaccine campaign analytics.**
 > Built by a Senior Data Scientist with 6+ years of real-world pharma analytics experience at a global consultancy.
 
+![Pharma MMM Agent dashboard demo](assets/demo.gif)
+
 ---
 
 ## 🧬 What Is This?
