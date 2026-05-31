@@ -192,6 +192,12 @@ def run_ols_mmm_tool(data_path: str, config_path: str, freq: str = "weekly") -> 
             "r_squared": round(r2, 4),
             "mape_pct": round(mape, 2),
             "baseline_scripts": round(float(model.intercept_), 0),
+            "total_brand_spend_k": round(float(sum(
+                res["total_spend_k"] for _, res in sorted_channels
+            )), 1),
+            "avg_period_spend_k": round(float(sum(
+                res["total_spend_k"] for _, res in sorted_channels
+            ) / len(y)), 1),
             "channels": dict(sorted_channels),
             "controls": control_coefs,
         }
@@ -203,10 +209,14 @@ def run_ols_mmm_tool(data_path: str, config_path: str, freq: str = "weekly") -> 
         n_model = sum(1 for _, r in sorted_channels if r["contribution_source"] == "model")
         n_prior = len(sorted_channels) - n_model
 
+        avg_period_spend = round(
+            sum(res["total_spend_k"] for _, res in sorted_channels) / len(y), 1
+        )
         summary_lines = [
             f"Ridge MMM Results (R²={r2:.3f}, MAPE={mape:.1f}%)",
             f"Observations: {len(y)} {freq} periods",
             f"Baseline scripts: {model.intercept_:,.0f}",
+            f"Avg period spend: ${avg_period_spend:,.1f}K  ← use this as total_budget_k for the optimiser",
             f"Channels: {n_model} model-identified, {n_prior} prior-estimated",
             "",
             f"{'Channel':<30} {'Type':<5} {'Spend $K':<12} {'ROI':<8} {'Contribution%':<16} {'Source'}",

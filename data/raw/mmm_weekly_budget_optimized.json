@@ -1,7 +1,7 @@
 {
-  "total_budget_k": 938.614423076923,
-  "current_response_index": 332.9571,
-  "optimal_response_index": 530.7911,
+  "total_budget_k": 938.6,
+  "current_response_index": 332.952,
+  "optimal_response_index": 530.7829,
   "projected_uplift_pct": 59.4,
   "allocations": [
     {

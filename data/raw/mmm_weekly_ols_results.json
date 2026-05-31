@@ -5,6 +5,8 @@
   "r_squared": 0.9509,
   "mape_pct": 2.98,
   "baseline_scripts": 10808.0,
+  "total_brand_spend_k": 97615.9,
+  "avg_period_spend_k": 938.6,
   "channels": {
     "samples_coupons": {
       "label": "Samples & Co-pay Coupons",

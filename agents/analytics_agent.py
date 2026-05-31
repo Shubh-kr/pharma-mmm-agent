@@ -48,7 +48,10 @@ STEP 2 — OLS MMM Model
 
 STEP 3 — Budget Optimisation
   Call run_budget_optimizer_tool using the OLS results.
-  Use the current total spend as the budget input (read from OLS results).
+  For total_budget_k use the "avg_period_spend_k" field from the OLS results JSON
+  (labelled "Avg period spend" in the tool output). This is the average spend per
+  week or month — NOT the 2-year total. Passing the 2-year total is a common mistake
+  that produces nonsensical reallocation percentages.
 
 STEP 4 — Bayesian MMM (optional, run when explicitly requested)
   Call run_bayesian_mmm_tool on the same transformed dataset.
