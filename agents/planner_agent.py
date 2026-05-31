@@ -32,19 +32,21 @@ def run_mmm_pipeline(
     config_path: str = "config/config.yaml",
     freq: str = "weekly",
     run_insights: bool = True,
+    run_bayesian: bool = False,
     verbose: bool = True
 ) -> dict:
     """
     Run the full Pharma MMM pipeline end-to-end.
 
     Pipeline:
-        generate_dataset → transforms → OLS MMM → budget optimiser → insights
+        generate_dataset → transforms → OLS MMM → [Bayesian MMM] → budget optimiser → insights
 
     Args:
         data_path    : path to MMM CSV. If None, uses config default.
         config_path  : path to config.yaml
         freq         : 'weekly' or 'monthly'
         run_insights : whether to run the insight agent (requires API key)
+        run_bayesian : whether to also run the Bayesian MMM (adds 2-5 min)
         verbose      : print progress
 
     Returns:
@@ -105,7 +107,7 @@ def run_mmm_pipeline(
         # Fallback: run tools directly without LLM orchestration
         if verbose:
             print("  ℹ️  Running in direct mode (no LLM) — add a real API key to .env to enable agent orchestration")
-        analytics_output = _run_tools_directly(data_path, config_path, freq, verbose)
+        analytics_output = _run_tools_directly(data_path, config_path, freq, verbose, run_bayesian)
 
     results["analytics_summary"] = analytics_output
 
@@ -150,10 +152,11 @@ def _run_tools_directly(
     data_path: str,
     config_path: str,
     freq: str,
-    verbose: bool
+    verbose: bool,
+    run_bayesian: bool = False,
 ) -> str:
     """
-    Fallback: run transforms + OLS + optimiser directly without LLM.
+    Fallback: run transforms + OLS (+ optional Bayesian) + optimiser without LLM.
     Useful for testing the pipeline before adding an API key.
     """
     import json
@@ -208,6 +211,18 @@ def _run_tools_directly(
         "freq": freq
     })
     outputs.append(opt_out)
+
+    # Bayesian MMM (optional — takes 2-5 minutes)
+    if run_bayesian:
+        from tools.bayesian_mmm_tool import run_bayesian_mmm_tool
+        if verbose:
+            print("  → Running Bayesian MMM (this takes 2-5 min)...")
+        bayes_out = run_bayesian_mmm_tool.invoke({
+            "data_path": transformed_path,
+            "config_path": config_path,
+            "freq": freq,
+        })
+        outputs.append(bayes_out)
 
     return "\n\n".join(outputs)
 

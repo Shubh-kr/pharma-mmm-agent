@@ -23,13 +23,14 @@ from tools.transforms import (
     apply_all_transforms_tool,
 )
 from tools.ols_mmm_tool import run_ols_mmm_tool
+from tools.bayesian_mmm_tool import run_bayesian_mmm_tool
 from tools.optimizer_tool import run_budget_optimizer_tool
 
 load_dotenv()
 
 # ── System prompt ─────────────────────────────────────────────────────────────
 
-ANALYTICS_SYSTEM_PROMPT = """You are a Senior Pharma Marketing Analytics Agent specialising in 
+ANALYTICS_SYSTEM_PROMPT = """You are a Senior Pharma Marketing Analytics Agent specialising in
 Marketing Mix Modelling (MMM) for vaccine and pharmaceutical campaigns.
 
 Your job is to run a rigorous, step-by-step MMM analysis pipeline:
@@ -42,18 +43,29 @@ STEP 2 — OLS MMM Model
   Call run_ols_mmm_tool on the transformed dataset.
   Use frequency matching: if data is mmm_weekly, use freq='weekly'.
   Interpret R² > 0.75 as a good fit. Flag anything below 0.65.
+  Note channels marked 'prior_estimate' — these could not be identified by Ridge
+  and were estimated from priors. Mention this in your summary.
 
 STEP 3 — Budget Optimisation
   Call run_budget_optimizer_tool using the OLS results.
   Use the current total spend as the budget input (read from OLS results).
 
-STEP 4 — Summarise
-  After all three tools have run, produce a clean structured summary:
-  - Model fit quality
-  - Top 3 highest-ROI channels
-  - Top 3 underperforming channels  
+STEP 4 — Bayesian MMM (optional, run when explicitly requested)
+  Call run_bayesian_mmm_tool on the same transformed dataset.
+  This takes 2-5 minutes. Advantages over OLS:
+    - All channels receive non-zero contributions via informative priors
+    - Every contribution has a 90% credible interval
+    - Competitor and price controls get proper negative posteriors
+  Check R̂ (r-hat) convergence: values < 1.05 indicate good mixing.
+  Compare Bayesian vs OLS contributions and flag any meaningful differences.
+
+STEP 5 — Summarise
+  After all tools have run, produce a clean structured summary:
+  - Model fit quality (R², MAPE, convergence if Bayesian)
+  - Top 3 highest-ROI channels with confidence
+  - Top 3 underperforming channels
   - Budget reallocation headline (e.g. "+8.3% scripts with same budget")
-  - Flag any data quality issues noticed
+  - How many channels were model-identified vs prior-estimated (OLS only)
 
 Always be precise with numbers. Round spend to 1 decimal place, ROI to 2 decimal places,
 percentages to 1 decimal place. Speak like a data scientist presenting to a pharma
@@ -113,6 +125,7 @@ def create_analytics_agent(model_name: str = None, verbose: bool = True):
         apply_adstock_tool,
         apply_saturation_tool,
         run_ols_mmm_tool,
+        run_bayesian_mmm_tool,
         run_budget_optimizer_tool,
     ]
 

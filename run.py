@@ -27,6 +27,7 @@ if __name__ == "__main__":
     parser.add_argument("--config",      default="config/config.yaml")
     parser.add_argument("--freq",        default="weekly", choices=["weekly", "monthly"])
     parser.add_argument("--no-insights", action="store_true", help="Skip LLM narrative")
+    parser.add_argument("--bayesian",    action="store_true", help="Also run Bayesian MMM (adds 2-5 min)")
     parser.add_argument("--quiet",       action="store_true")
     args = parser.parse_args()
 
@@ -35,6 +36,7 @@ if __name__ == "__main__":
         config_path=args.config,
         freq=args.freq,
         run_insights=not args.no_insights,
+        run_bayesian=args.bayesian,
         verbose=not args.quiet
     )
 
