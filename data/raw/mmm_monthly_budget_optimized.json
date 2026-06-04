@@ -1,0 +1,128 @@
+{
+  "total_budget_k": 4321.227777777777,
+  "current_response_index": 1666.3194,
+  "optimal_response_index": 2046.8709,
+  "projected_uplift_pct": 22.8,
+  "allocations": [
+    {
+      "channel": "Medical Congress & Symposia",
+      "type": "hcp",
+      "current_spend_k": 309.2,
+      "optimal_spend_k": 773.0,
+      "change_k": 463.8,
+      "change_pct": 150.0,
+      "action": "Increase \u2191",
+      "fitted_roi": 0.728
+    },
+    {
+      "channel": "Speaker Bureau Programs",
+      "type": "hcp",
+      "current_spend_k": 190.2,
+      "optimal_spend_k": 475.5,
+      "change_k": 285.3,
+      "change_pct": 150.0,
+      "action": "Increase \u2191",
+      "fitted_roi": 0.63
+    },
+    {
+      "channel": "Field Rep Visits",
+      "type": "hcp",
+      "current_spend_k": 986.2,
+      "optimal_spend_k": 1510.1,
+      "change_k": 523.9,
+      "change_pct": 53.1,
+      "action": "Increase \u2191",
+      "fitted_roi": 0.532
+    },
+    {
+      "channel": "Patient CRM Email",
+      "type": "dtc",
+      "current_spend_k": 57.8,
+      "optimal_spend_k": 86.4,
+      "change_k": 28.7,
+      "change_pct": 49.6,
+      "action": "Increase \u2191",
+      "fitted_roi": 0.096
+    },
+    {
+      "channel": "HCP Email Campaigns",
+      "type": "hcp",
+      "current_spend_k": 70.8,
+      "optimal_spend_k": 86.4,
+      "change_k": 15.6,
+      "change_pct": 22.1,
+      "action": "Increase \u2191",
+      "fitted_roi": 0.252
+    },
+    {
+      "channel": "Patient Advocacy Partnerships",
+      "type": "dtc",
+      "current_spend_k": 100.4,
+      "optimal_spend_k": 86.4,
+      "change_k": -13.9,
+      "change_pct": -13.9,
+      "action": "Reduce \u2193",
+      "fitted_roi": 0.21
+    },
+    {
+      "channel": "Journal Advertising",
+      "type": "hcp",
+      "current_spend_k": 188.3,
+      "optimal_spend_k": 94.1,
+      "change_k": -94.1,
+      "change_pct": -50.0,
+      "action": "Reduce \u2193",
+      "fitted_roi": 0.308
+    },
+    {
+      "channel": "HCP Programmatic Digital",
+      "type": "hcp",
+      "current_spend_k": 273.7,
+      "optimal_spend_k": 136.9,
+      "change_k": -136.9,
+      "change_pct": -50.0,
+      "action": "Reduce \u2193",
+      "fitted_roi": 0.168
+    },
+    {
+      "channel": "Samples & Co-pay Coupons",
+      "type": "hcp",
+      "current_spend_k": 425.3,
+      "optimal_spend_k": 212.6,
+      "change_k": -212.6,
+      "change_pct": -50.0,
+      "action": "Reduce \u2193",
+      "fitted_roi": 0.462
+    },
+    {
+      "channel": "DTC Television",
+      "type": "dtc",
+      "current_spend_k": 1090.3,
+      "optimal_spend_k": 545.2,
+      "change_k": -545.2,
+      "change_pct": -50.0,
+      "action": "Reduce \u2193",
+      "fitted_roi": 0.28
+    },
+    {
+      "channel": "DTC Digital & Social",
+      "type": "dtc",
+      "current_spend_k": 418.8,
+      "optimal_spend_k": 209.4,
+      "change_k": -209.4,
+      "change_pct": -50.0,
+      "action": "Reduce \u2193",
+      "fitted_roi": 0.35
+    },
+    {
+      "channel": "Out-of-Home Advertising",
+      "type": "dtc",
+      "current_spend_k": 210.2,
+      "optimal_spend_k": 105.1,
+      "change_k": -105.1,
+      "change_pct": -50.0,
+      "action": "Reduce \u2193",
+      "fitted_roi": 0.21
+    }
+  ]
+}

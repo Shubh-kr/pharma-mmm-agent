@@ -195,17 +195,20 @@ def run_pipeline(freq, run_bayesian, run_insights):
 
 # ── Tab helpers ───────────────────────────────────────────────────────────────
 
-def tab_overview(df, config):
+def tab_overview(df, config, freq="weekly"):
     channels = list(config["channels"].keys())
+    period   = "monthly" if freq == "monthly" else "weekly"
+    n_years  = len(df) // (12 if freq == "monthly" else 52)
+    span_lbl = f"{n_years}yr" if n_years > 0 else f"{len(df)}-period"
 
     # KPI row
     c1, c2, c3, c4 = st.columns(4)
     total_spend = df[channels].values.sum() / 1000
-    c1.metric("Total 2yr spend", f"${total_spend:.1f}M")
-    c2.metric("Avg weekly scripts", f"{df['scripts_written'].mean():,.0f}")
+    c1.metric(f"Total {span_lbl} spend", f"${total_spend:.1f}M")
+    c2.metric(f"Avg {period} scripts", f"{df['scripts_written'].mean():,.0f}")
     c3.metric("Peak / trough ratio",
               f"{df['scripts_written'].max()/df['scripts_written'].min():.2f}×")
-    c4.metric("Weeks", str(len(df)))
+    c4.metric("Months" if freq == "monthly" else "Weeks", str(len(df)))
 
     col1, col2 = st.columns([1, 2])
 
@@ -265,10 +268,12 @@ def tab_overview(df, config):
         st.caption("Shaded bands = vaccine season (Sep–Nov)")
 
 
-def tab_ridge(ols, config):
+def tab_ridge(ols, config, freq="weekly"):
     if ols is None:
         st.info("No OLS results yet — run the pipeline from the sidebar.")
         return
+
+    period_abbr = "mo" if freq == "monthly" else "wk"
 
     # KPI row
     c1, c2, c3, c4 = st.columns(4)
@@ -277,7 +282,7 @@ def tab_ridge(ols, config):
     c1.metric("R²", f"{ols['r_squared']:.3f}",
               delta="Excellent" if ols["r_squared"] > 0.9 else None)
     c2.metric("MAPE", f"{ols['mape_pct']:.1f}%")
-    c3.metric("Baseline scripts/wk", f"{ols['baseline_scripts']:,.0f}")
+    c3.metric(f"Baseline scripts/{period_abbr}", f"{ols['baseline_scripts']:,.0f}")
     c4.metric("Model-identified channels", f"{n_model} / {len(ols['channels'])}")
 
     col1, col2 = st.columns(2)
@@ -347,7 +352,7 @@ def tab_ridge(ols, config):
         disp = channels_df[["label", "channel_type", "avg_weekly_spend_k",
                              "total_spend_k", "estimated_roi", "contribution_pct",
                              "source"]].copy()
-        disp.columns = ["Channel", "Type", "Avg wk spend $K", "Total spend $K",
+        disp.columns = ["Channel", "Type", f"Avg {period_abbr} spend $K", "Total spend $K",
                         "ROI", "Contrib %", "Source"]
         st.dataframe(disp.sort_values("Contrib %", ascending=False),
                      use_container_width=True, hide_index=True)
@@ -1242,10 +1247,10 @@ def main():
         if df is None:
             st.info("Dataset not found. Run `python scripts/generate_dataset.py` first.")
         else:
-            tab_overview(df, config)
+            tab_overview(df, config, freq)
 
     with tabs[1]:
-        tab_ridge(ols, config)
+        tab_ridge(ols, config, freq)
 
     with tabs[2]:
         tab_bayesian(bayes, ols, config)
