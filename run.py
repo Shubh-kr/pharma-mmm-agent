@@ -29,8 +29,9 @@ if __name__ == "__main__":
     parser.add_argument("--no-insights", action="store_true", help="Skip LLM narrative")
     parser.add_argument("--bayesian",    action="store_true", help="Also run Bayesian MMM (adds 2-5 min)")
     parser.add_argument("--geo",          action="store_true", help="Also run geo-level MMM + optimizer")
-    parser.add_argument("--geo-bayesian",  action="store_true", help="Also run Bayesian MMM per territory (implies --geo, adds ~20 min)")
-    parser.add_argument("--geo-insights",  action="store_true", help="Generate LLM geo insight narrative (implies --geo, needs API key)")
+    parser.add_argument("--geo-bayesian",      action="store_true", help="Also run Bayesian MMM per territory (implies --geo, adds ~20 min)")
+    parser.add_argument("--geo-hierarchical",  action="store_true", help="Run hierarchical Bayesian MMM across all territories (implies --geo, adds ~3-5 min)")
+    parser.add_argument("--geo-insights",      action="store_true", help="Generate LLM geo insight narrative (implies --geo, needs API key)")
     parser.add_argument("--quiet",       action="store_true")
     args = parser.parse_args()
 
@@ -54,7 +55,7 @@ if __name__ == "__main__":
         print("=" * 60)
         print(results["insights"])
 
-    if args.geo or getattr(args, 'geo_bayesian', False) or getattr(args, 'geo_insights', False):
+    if args.geo or getattr(args, 'geo_bayesian', False) or getattr(args, 'geo_hierarchical', False) or getattr(args, 'geo_insights', False):
         import json
         from tools.geo_mmm_tool import run_geo_ols_mmm_tool
         from tools.geo_optimizer_tool import run_geo_budget_optimizer_tool
@@ -93,6 +94,16 @@ if __name__ == "__main__":
         print("GEO BAYESIAN MMM")
         print("=" * 60)
         print(run_geo_bayesian_mmm_tool.invoke(
+            {"data_path": geo_path, "config_path": args.config, "freq": args.freq}
+        ))
+
+    if getattr(args, 'geo_hierarchical', False):
+        from tools.geo_hierarchical_mmm_tool import run_geo_hierarchical_mmm_tool
+        geo_path = f"data/raw/mmm_{args.freq}_geo.csv"
+        print("\n" + "=" * 60)
+        print("GEO HIERARCHICAL BAYESIAN MMM")
+        print("=" * 60)
+        print(run_geo_hierarchical_mmm_tool.invoke(
             {"data_path": geo_path, "config_path": args.config, "freq": args.freq}
         ))
 

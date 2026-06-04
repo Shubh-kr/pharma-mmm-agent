@@ -68,6 +68,14 @@ def load_geo_bayesian(freq):
     with open(path) as f:
         return json.load(f)
 
+@st.cache_data
+def load_geo_hierarchical(freq):
+    path = f"data/raw/mmm_{freq}_geo_hierarchical_results.json"
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        return json.load(f)
+
 def load_geo_narrative(freq):
     path = f"reports/mmm_{freq}_geo_insights.md"
     if not os.path.exists(path):
@@ -127,6 +135,12 @@ def sidebar(config):
         value=False,
         help="Runs PyMC per territory after Geo Ridge. Adds HDI credible intervals.",
     )
+    run_geo_hier = st.sidebar.checkbox(
+        "Include Geo Hierarchical (~5 min)",
+        value=False,
+        help="Single PyMC model over all territories with partial pooling. "
+             "Mountain territory benefits most from shared national prior.",
+    )
     run_geo_insights = st.sidebar.checkbox(
         "Include Geo AI narrative",
         value=False,
@@ -140,7 +154,7 @@ def sidebar(config):
         f"model    : {config['llm']['model']}",
         language=None,
     )
-    return freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes, run_geo_insights
+    return freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes, run_geo_hier, run_geo_insights
 
 
 def run_pipeline(freq, run_bayesian, run_insights):
@@ -552,7 +566,7 @@ def tab_budget(opt, config):
         )
 
 
-def run_geo_pipeline(freq, run_bayesian=False, run_insights=False):
+def run_geo_pipeline(freq, run_bayesian=False, run_hierarchical=False, run_insights=False):
     with st.status("Running Geo MMM pipeline…", expanded=True) as status:
         from tools.geo_mmm_tool import run_geo_ols_mmm_tool
         from tools.geo_optimizer_tool import run_geo_budget_optimizer_tool
@@ -592,6 +606,13 @@ def run_geo_pipeline(freq, run_bayesian=False, run_insights=False):
             from tools.geo_bayesian_mmm_tool import run_geo_bayesian_mmm_tool
             st.write("🧮 Running Geo Bayesian MMM (per territory, ~20 min)…")
             run_geo_bayesian_mmm_tool.invoke(
+                {"data_path": geo_path, "config_path": "config/config.yaml", "freq": freq}
+            )
+
+        if run_hierarchical:
+            from tools.geo_hierarchical_mmm_tool import run_geo_hierarchical_mmm_tool
+            st.write("🔗 Running Geo Hierarchical Bayesian MMM (~5 min)…")
+            run_geo_hierarchical_mmm_tool.invoke(
                 {"data_path": geo_path, "config_path": "config/config.yaml", "freq": freq}
             )
 
@@ -877,7 +898,58 @@ def _render_geo_bayesian(geo_bayes: dict, config: dict):
     st.caption("Ridge ROI is not shown here; load geo OLS results alongside Bayesian to compare.")
 
 
-def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_narrative, config):
+def _render_geo_hierarchical(geo_hier: dict, config: dict):
+    """Hierarchical Bayesian sub-section rendered inside tab_geo."""
+    terr_data = geo_hier.get("territories", {})
+    if not terr_data:
+        st.info("Hierarchical results are empty.")
+        return
+
+    mcmc = geo_hier.get("mcmc", {})
+    st.subheader("Hierarchical model — national hyperpriors")
+    st.caption(
+        f"Single joint model | R̂ max={mcmc.get('max_rhat', '—')} | "
+        f"{'✓ converged' if mcmc.get('converged') else '⚠ check chains'} | "
+        f"{mcmc.get('chains', '?')}×{mcmc.get('draws', '?')} draws"
+    )
+
+    # National hyperprior ROI table
+    hp = geo_hier.get("national_hyperpriors", {})
+    if hp:
+        hp_rows = [
+            {
+                "Channel":       v["label"],
+                "National ROI":  v["national_roi_mean"],
+                "μ_beta (mean)": v["mu_beta_mean"],
+                "σ_terr (spread)": v["sigma_terr_mean"],
+                "CV (σ/μ)":      round(v["sigma_terr_mean"] / (v["mu_beta_mean"] + 1e-9), 2),
+            }
+            for v in sorted(hp.values(), key=lambda x: x["national_roi_mean"], reverse=True)
+        ]
+        st.dataframe(
+            pd.DataFrame(hp_rows),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "National ROI":      st.column_config.NumberColumn(format="%.3f"),
+                "μ_beta (mean)":     st.column_config.NumberColumn(format="%.4f"),
+                "σ_terr (spread)":   st.column_config.NumberColumn(format="%.4f"),
+                "CV (σ/μ)":          st.column_config.NumberColumn(
+                    help="Coefficient of variation — high value = ROI varies a lot across territories",
+                    format="%.2f",
+                ),
+            },
+        )
+        st.caption(
+            "**σ_terr** = posterior mean of the territory-level spread in log-beta space. "
+            "Low CV ≈ ROI is consistent across territories; high CV ≈ strong regional variation."
+        )
+
+    # Reuse the per-territory convergence + HDI rendering
+    _render_geo_bayesian(geo_hier, config)
+
+
+def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_hier, geo_narrative, config):
     territories_cfg = config.get("territories", {})
 
     if geo_df is None:
@@ -1090,6 +1162,18 @@ def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_narrative, config):
             "Check **Include Geo Bayesian** and click **🗺️ Run Geo Pipeline** (~20 min)."
         )
 
+    # ── Hierarchical Bayesian section ──────────────────────────────────────────
+    if geo_hier:
+        st.divider()
+        with st.expander("🔗 Hierarchical Bayesian MMM — partial pooling across territories",
+                         expanded=False):
+            _render_geo_hierarchical(geo_hier, config)
+    elif geo_df is not None:
+        st.info(
+            "Hierarchical Bayesian results not yet available. "
+            "Check **Include Geo Hierarchical** and click **🗺️ Run Geo Pipeline** (~5 min)."
+        )
+
     # ── Geo budget optimiser results ───────────────────────────────────────────
     if geo_opt:
         st.subheader("Geo budget optimiser")
@@ -1208,14 +1292,15 @@ def tab_insights(freq):
 
 def main():
     config = load_config()
-    freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes, run_geo_insights = sidebar(config)
+    freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes, run_geo_hier, run_geo_insights = sidebar(config)
 
     if run_btn:
         run_pipeline(freq, run_bayesian, run_insights)
         st.rerun()
 
     if run_geo_btn:
-        run_geo_pipeline(freq, run_bayesian=run_geo_bayes, run_insights=run_geo_insights)
+        run_geo_pipeline(freq, run_bayesian=run_geo_bayes,
+                         run_hierarchical=run_geo_hier, run_insights=run_geo_insights)
         st.rerun()
 
     prefix = f"data/raw/mmm_{freq}"
@@ -1227,6 +1312,7 @@ def main():
     geo_ols       = load_json(f"{prefix}_geo_ols_results.json")
     geo_opt       = load_json(f"{prefix}_geo_budget_optimized.json")
     geo_bayes     = load_geo_bayesian(freq)
+    geo_hier      = load_geo_hierarchical(freq)
     geo_narrative = load_geo_narrative(freq)
 
     st.title("💊 Pharma MMM Agent")
@@ -1259,7 +1345,7 @@ def main():
         tab_budget(opt, config)
 
     with tabs[4]:
-        tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_narrative, config)
+        tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_hier, geo_narrative, config)
 
     with tabs[5]:
         tab_insights(freq)

@@ -135,6 +135,11 @@ bayesian_model:
   geo_draws: 800
   geo_tune: 400
   geo_chains: 2
+  # Hierarchical model — single joint run across all territories (~3-5 min)
+  # Raise to 1000/600/4 for publication-quality posteriors
+  hier_draws: 600
+  hier_tune: 400
+  hier_chains: 2
 
 # ── Budget optimiser settings ───────────────────────────────
 optimizer:
