@@ -1,0 +1,148 @@
+{
+  "model": "Ridge MMM",
+  "frequency": "monthly",
+  "n_observations": 36,
+  "r_squared": 0.976,
+  "mape_pct": 2.88,
+  "baseline_scripts": 33619.0,
+  "total_brand_spend_k": 155564.2,
+  "avg_period_spend_k": 4321.2,
+  "channels": {
+    "speaker_programs": {
+      "label": "Speaker Bureau Programs",
+      "channel_type": "hcp",
+      "avg_weekly_spend_k": 190.2,
+      "total_spend_k": 6846.9,
+      "model_coefficient": 1048.0758,
+      "estimated_roi": 0.63,
+      "total_contribution": 415219.3,
+      "contribution_pct": 31.8,
+      "contribution_source": "model"
+    },
+    "journal_advertising": {
+      "label": "Journal Advertising",
+      "channel_type": "hcp",
+      "avg_weekly_spend_k": 188.3,
+      "total_spend_k": 6778.6,
+      "model_coefficient": 874.4136,
+      "estimated_roi": 0.308,
+      "total_contribution": 256700.3,
+      "contribution_pct": 19.7,
+      "contribution_source": "model"
+    },
+    "medical_congress": {
+      "label": "Medical Congress & Symposia",
+      "channel_type": "hcp",
+      "avg_weekly_spend_k": 309.2,
+      "total_spend_k": 11131.6,
+      "model_coefficient": 537.4189,
+      "estimated_roi": 0.728,
+      "total_contribution": 169136.3,
+      "contribution_pct": 13.0,
+      "contribution_source": "model"
+    },
+    "patient_advocacy": {
+      "label": "Patient Advocacy Partnerships",
+      "channel_type": "dtc",
+      "avg_weekly_spend_k": 100.4,
+      "total_spend_k": 3613.4,
+      "model_coefficient": 0.0,
+      "estimated_roi": 0.21,
+      "total_contribution": 86648.5,
+      "contribution_pct": 6.6,
+      "contribution_source": "prior_estimate"
+    },
+    "hcp_email": {
+      "label": "HCP Email Campaigns",
+      "channel_type": "hcp",
+      "avg_weekly_spend_k": 70.8,
+      "total_spend_k": 2548.6,
+      "model_coefficient": 324.5571,
+      "estimated_roi": 0.252,
+      "total_contribution": 76239.6,
+      "contribution_pct": 5.8,
+      "contribution_source": "model"
+    },
+    "hcp_digital": {
+      "label": "HCP Programmatic Digital",
+      "channel_type": "hcp",
+      "avg_weekly_spend_k": 273.7,
+      "total_spend_k": 9853.3,
+      "model_coefficient": 0.0,
+      "estimated_roi": 0.168,
+      "total_contribution": 69318.8,
+      "contribution_pct": 5.3,
+      "contribution_source": "prior_estimate"
+    },
+    "samples_coupons": {
+      "label": "Samples & Co-pay Coupons",
+      "channel_type": "hcp",
+      "avg_weekly_spend_k": 425.3,
+      "total_spend_k": 15310.0,
+      "model_coefficient": 206.7655,
+      "estimated_roi": 0.462,
+      "total_contribution": 66434.7,
+      "contribution_pct": 5.1,
+      "contribution_source": "model"
+    },
+    "rep_visits": {
+      "label": "Field Rep Visits",
+      "channel_type": "hcp",
+      "avg_weekly_spend_k": 986.2,
+      "total_spend_k": 35503.7,
+      "model_coefficient": 188.6231,
+      "estimated_roi": 0.532,
+      "total_contribution": 49240.2,
+      "contribution_pct": 3.8,
+      "contribution_source": "model"
+    },
+    "dtc_ooh": {
+      "label": "Out-of-Home Advertising",
+      "channel_type": "dtc",
+      "avg_weekly_spend_k": 210.2,
+      "total_spend_k": 7568.4,
+      "model_coefficient": 144.8642,
+      "estimated_roi": 0.21,
+      "total_contribution": 44119.0,
+      "contribution_pct": 3.4,
+      "contribution_source": "model"
+    },
+    "patient_email": {
+      "label": "Patient CRM Email",
+      "channel_type": "dtc",
+      "avg_weekly_spend_k": 57.8,
+      "total_spend_k": 2079.2,
+      "model_coefficient": 0.0,
+      "estimated_roi": 0.096,
+      "total_contribution": 39610.7,
+      "contribution_pct": 3.0,
+      "contribution_source": "prior_estimate"
+    },
+    "dtc_digital": {
+      "label": "DTC Digital & Social",
+      "channel_type": "dtc",
+      "avg_weekly_spend_k": 418.8,
+      "total_spend_k": 15078.3,
+      "model_coefficient": 65.3076,
+      "estimated_roi": 0.35,
+      "total_contribution": 22543.0,
+      "contribution_pct": 1.7,
+      "contribution_source": "model"
+    },
+    "dtc_tv": {
+      "label": "DTC Television",
+      "channel_type": "dtc",
+      "avg_weekly_spend_k": 1090.3,
+      "total_spend_k": 39252.2,
+      "model_coefficient": 25.2114,
+      "estimated_roi": 0.28,
+      "total_contribution": 8643.3,
+      "contribution_pct": 0.7,
+      "contribution_source": "model"
+    }
+  },
+  "controls": {
+    "competitor_spend": 4.3919,
+    "price_index": -198.2814
+  }
+}
