@@ -22,6 +22,9 @@ python run.py --no-insights --geo
 # Run geo + Bayesian per territory (~2 min)
 python run.py --no-insights --geo-bayesian
 
+# Run geo + hierarchical Bayesian across all territories (~2 min)
+python run.py --no-insights --geo-hierarchical
+
 # Run geo + AI narrative (needs ANTHROPIC_API_KEY or OPENAI_API_KEY in .env)
 python run.py --geo --geo-insights
 
@@ -57,11 +60,12 @@ run.py
   │     ├── [--bayesian] run_bayesian_mmm_tool → *_bayesian_results.json
   │     └── [LLM] insight_agent       → reports/*_insights.md
   │
-  ├── [--geo / --geo-bayesian / --geo-insights]
-  │     ├── run_geo_ols_mmm_tool      → *_geo_ols_results.json
+  ├── [--geo / --geo-bayesian / --geo-hierarchical / --geo-insights]
+  │     ├── run_geo_ols_mmm_tool          → *_geo_ols_results.json (+ season split)
   │     ├── run_geo_budget_optimizer_tool → *_geo_budget_optimized.json
-  │     ├── [--geo-bayesian] run_geo_bayesian_mmm_tool → *_geo_bayesian_results.json
-  │     └── [--geo-insights] run_geo_insight_agent → reports/*_geo_insights.md
+  │     ├── [--geo-bayesian]     run_geo_bayesian_mmm_tool     → *_geo_bayesian_results.json
+  │     ├── [--geo-hierarchical] run_geo_hierarchical_mmm_tool → *_geo_hierarchical_results.json
+  │     └── [--geo-insights]     run_geo_insight_agent         → reports/*_geo_insights.md
   │
   └── app.py (Streamlit, 6 tabs)
         Overview | Ridge MMM | Bayesian MMM | Budget | Geo | Insights
@@ -75,8 +79,9 @@ run.py
 | `ols_mmm_tool.py` | `*_transformed.csv` | `*_ols_results.json` — Ridge MMM, per-channel ROI + contribution |
 | `bayesian_mmm_tool.py` | `*_transformed.csv` | `*_bayesian_results.json` — PyMC posteriors + 90% HDI |
 | `optimizer_tool.py` | `*_ols_results.json` | `*_budget_optimized.json` — SLSQP channel reallocation |
-| `geo_mmm_tool.py` | `*_geo.csv` (long format) | `*_geo_ols_results.json` — Ridge per territory |
+| `geo_mmm_tool.py` | `*_geo.csv` (long format) | `*_geo_ols_results.json` — Ridge per territory + post-hoc season ROI split |
 | `geo_bayesian_mmm_tool.py` | `*_geo.csv` | `*_geo_bayesian_results.json` — PyMC per territory + HDI |
+| `geo_hierarchical_mmm_tool.py` | `*_geo.csv` | `*_geo_hierarchical_results.json` — single PyMC model, partial pooling |
 | `geo_optimizer_tool.py` | `*_geo_ols_results.json` | `*_geo_budget_optimized.json` — two-level optimizer |
 
 **Math notes:**
@@ -93,8 +98,8 @@ Single source of truth. Key sections:
 - `llm`: provider (anthropic/openai), model, temperature
 - `data`: file paths, outcome column (`scripts_written`)
 - `channels`: 12 channels × `adstock_decay`, `saturation`, `prior_roi`, `channel_type` (hcp/dtc)
-- `ols_model`: `ridge_alpha`, seasonality dummies, congress/competitor/price controls, `prior_contribution_weight`
-- `bayesian_model`: `draws`, `tune`, `chains`, `geo_draws`/`geo_tune`/`geo_chains` (faster for per-territory runs)
+- `ols_model`: `ridge_alpha`, seasonality dummies, congress/competitor/price controls, `prior_contribution_weight`, `season_interactions` (bool, default true)
+- `bayesian_model`: `draws`, `tune`, `chains`, `geo_draws`/`geo_tune`/`geo_chains` (per-territory), `hier_draws`/`hier_tune`/`hier_chains` (hierarchical joint model)
 - `optimizer`: budget share bounds, `max_spend_increase_factor`/`decrease_factor` (channel corridors), `max_territory_increase_factor`/`decrease_factor` (tighter, 1.30×/0.80×)
 - `territories`: 6 regions × `market_size`, `spend_share`, `hcp_mult`, `dtc_mult`, `season_str`, `states`
 - `report`: brand name used in narratives
@@ -133,32 +138,60 @@ Rendered inside the Geo tab between the optimizer expanders and the AI narrative
 
 Math: `Δ Scripts ≈ roi_efficiency[t] × Δ Budget[t]` summed across territories. Proportionally scales allocations to `total_national_budget_k` when the user over/under-allocates. Preset buttons seed `st.session_state[f"whatif_s_{tk}"]` before slider rendering — this is the correct Streamlit pattern for programmatic slider resets.
 
-## Session progress (as of 2026-05-31)
+## Session progress (as of 2026-06-05)
 
-### Completed — previous sessions (merged to main via PR #1)
-- Geo dataset generator (6 US territories, long-format, correct spend/ROI/baseline scaling)
-- Geo Ridge MMM tool (`tools/geo_mmm_tool.py`) — per-territory, in-memory transforms
-- Two-level geo optimizer (`tools/geo_optimizer_tool.py`) — channel mix + territory allocation
-- Separate territory corridors in config (1.30×/0.80× vs 2.50×/0.50× for channels)
-- Streamlit Geo tab — choropleth, channel stacked bar, optimizer table, expanders
-- Geo Bayesian MMM (`tools/geo_bayesian_mmm_tool.py`) — PyMC per territory, ~2 min total
-- Dashboard: Ridge vs Bayesian scatter, convergence table, HDI error bars, uncertainty heatmap
-- `PROJECT_STATUS.md` — full feature inventory and roadmap
-- PR workflow established: always use `feat/...` branch, never push directly to main
+### Completed — previous sessions (merged to main, PRs #1–#2)
+- Geo dataset generator, Geo Ridge MMM, two-level geo optimizer, Geo tab (choropleth, stacked bar, optimizer table, expanders)
+- Geo Bayesian MMM per territory (PyMC, ~2 min total), Ridge vs Bayesian scatter, convergence table, HDI error bars, uncertainty heatmap
+- Geo AI narrative (`run_geo_insight_agent()`), what-if geo budget simulator with 6 territory sliders + preset buttons
 
-### Completed — this session (on `feat/geo-insight-narrative`, PR #2 open)
-- **Geo AI narrative** — `GEO_INSIGHT_SYSTEM_PROMPT`, `generate_geo_insights()`, `run_geo_insight_agent()`, `_territory_context_block()` in `agents/insight_agent.py`; `--geo-insights` flag in `run.py`; sidebar checkbox + pipeline runner + Markdown display in `app.py`
-  - Bug fixed: `ChatAnthropic` default `max_tokens=1024` truncated the report → raised to `max_tokens=8096`
-  - Verified end-to-end: `python run.py --geo-insights --no-insights` → `reports/mmm_weekly_geo_insights.md` (164 lines, all 7 sections)
-- **What-if geo budget simulator** — `_render_whatif_simulator()` in `app.py`; 6 territory sliders, budget balance indicator, simulated NRx uplift KPI, overlay bar chart, delta table, preset buttons (reset / apply optimizer)
-  - Verified in browser: slider interaction, both presets, chart/table rendering all confirmed
+### Completed — this session (merged to main, PRs #3–#4 + direct commits)
 
-### In progress
-- Nothing currently in progress. PR #2 is open and ready for review.
+**PR #3 — Monthly geo pipeline in dashboard**
+- Generated `mmm_monthly_geo_ols_results.json` and `mmm_monthly_geo_budget_optimized.json`
+- Geo tab already loaded files by freq prefix; the monthly results just hadn't been generated
+- Fixed hardcoded "weekly"/"Weeks" labels in `tab_overview` and `tab_ridge` — both functions now take `freq` param:
+  - "Avg weekly scripts" → "Avg monthly/weekly scripts"
+  - "Weeks" → "Months"/"Weeks"
+  - "Baseline scripts/wk" → "Baseline scripts/mo" or "/wk"
+  - "Avg wk spend $K" table header follows same pattern
 
-## Next steps (roadmap order)
+**PR #4 — Hierarchical Bayesian geo MMM** (`tools/geo_hierarchical_mmm_tool.py`)
+- Single joint PyMC model across all 6 territories with partial pooling via log-normal non-centred hyperpriors on channel betas
+- Mountain territory borrows ROI estimates from larger territories (key benefit)
+- **Critical design decision — log-normal baselines:** first run used Normal non-centred for territory baselines → Mountain and Midwest went negative. Switched to log-normal non-centred (`pt.exp(log_mu_bl + sigma_log_bl * z_bl)`) which forces positivity and handles the 3× range in market sizes naturally
+- Output: `*_geo_hierarchical_results.json` with top-level `national_hyperpriors` block (μ_beta, σ_terr, national_roi_mean per channel) + same territory structure as per-territory Bayesian
+- Dashboard: sidebar checkbox "Include Geo Hierarchical (~5 min)", new expander in Geo tab, `_render_geo_hierarchical()` shows hyperprior table then reuses `_render_geo_bayesian()`
+- CLI: `python run.py --geo-hierarchical` (works for both weekly and monthly)
+- Config: `hier_draws: 600`, `hier_tune: 400`, `hier_chains: 2` under `bayesian_model`
+- Results: weekly R̂=1.005, monthly R̂=1.004, both converged, all baselines positive
 
-1. **Monthly geo pipeline in dashboard** — Geo tab loads weekly geo files only; add freq-aware file loading so switching to "monthly" shows monthly geo results
-2. **Hierarchical geo model** — shared national trend via PyMC hierarchical priors (improves Mountain territory estimates which have the least data)
-3. **Territory × time interactions** — allow ROI multipliers to vary by season per territory
-4. **Response curves per territory** — visualise adstock+saturation curves by territory in dashboard
+**Direct commit — monthly hierarchical results**
+- `data/raw/mmm_monthly_geo_hierarchical_results.json` generated and committed to main
+
+### In progress — `feat/season-interactions` branch
+
+**Territory × time interactions** — implementation started, branch open but not yet committed:
+- **Design decision (important):** First attempted adding `sat_ch × vaccine_season` as explicit Ridge interaction features. This caused wildly unstable gammas on sparse territories (Mountain: -108604% lift for HCP Programmatic Digital) due to multicollinearity with month dummies and underdetermined system on 36 monthly observations.
+- **Switched to post-hoc seasonal ROI split** (cleaner, no model change):
+  - Keep Ridge model exactly as-is
+  - After fitting, evaluate the same beta at in-season vs off-season avg saturation/spend levels
+  - The ROI difference comes from saturation: more in-season spend → further along diminishing-returns curve → lower marginal ROI
+  - Only computed for model-identified channels (`contribution_source == "model"`, `beta > 1e-6`) — prior-estimated channels have beta ≈ 0, split would be meaningless
+  - Per-channel additions to JSON: `roi_in_season`, `roi_off_season`, `season_lift_pct`
+  - New helper `_season_roi_split()` in `geo_mmm_tool.py`; `has_season_interactions: bool` flag on territory result
+- Current state: `geo_mmm_tool.py` rewritten with post-hoc approach, **pipeline not yet re-run**, dashboard not yet updated, PR not yet opened
+- **Next action:** run `python run.py --no-insights --geo` to verify season lifts are sensible, then add dashboard heatmap and open PR
+
+## Next steps (exact, in order)
+
+1. **Finish `feat/season-interactions`** (currently on this branch):
+   - Run `python run.py --no-insights --geo` and verify `season_lift_pct` values are reasonable (expect ±5–30% for HCP channels, smaller for DTC)
+   - Run `python run.py --freq monthly --no-insights --geo` for monthly results
+   - Add `_render_season_interactions(geo_ols)` to `app.py`: heatmap territory (rows) × channel (cols) → `season_lift_pct`, diverging colorscale (green = better in season, red = worse)
+   - Place heatmap in Geo tab after the channel stacked-bar section, before the Bayesian section
+   - Commit result files + code changes, open PR
+
+2. **Response curves per territory** — visualise adstock+saturation curves by territory in dashboard (next roadmap item after season interactions)
+
+3. **Hierarchical model in geo narrative** — `run_geo_insight_agent()` currently reads only Ridge and per-territory Bayesian results; extend to include hierarchical national ROI summaries in the narrative context
