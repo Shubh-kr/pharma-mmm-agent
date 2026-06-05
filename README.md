@@ -11,7 +11,7 @@
 
 Most MMM tools are built for e-commerce or CPG. This one is built for **pharma**.
 
-This template gives you a fully working **LangChain multi-agent system** that ingests vaccine / drug campaign spend data across **12 HCP and patient channels**, runs both **frequentist (Ridge/OLS)** and **Bayesian (PyMC)** MMM models, and generates **plain-English insights and budget recommendations** — the kind your commercial strategy team can actually act on.
+This template gives you a fully working **LangChain multi-agent system** that ingests vaccine / drug campaign spend data across **12 HCP and patient channels**, runs both **frequentist (Ridge/OLS)** and **Bayesian (PyMC)** MMM models across **6 US territories**, and generates **plain-English insights and budget recommendations** — the kind your commercial strategy team can actually act on.
 
 If you've ever spent weeks wrangling claims data, fitting adstock curves, and then writing a 40-slide deck to explain what it means — this agent does that end-to-end.
 
@@ -19,20 +19,44 @@ If you've ever spent weeks wrangling claims data, fitting adstock curves, and th
 
 ## ⚡ What You Get
 
+### Core modelling
+
 | Component | Description |
 |---|---|
-| `scripts/generate_dataset.py` | Synthetic vaccine campaign dataset generator — 12 channels, realistic pharma seasonality, competitor spend and price controls |
-| `agents/planner_agent.py` | Orchestrator — runs the full pipeline, LLM-orchestrated or direct mode |
-| `agents/analytics_agent.py` | LangChain agent that calls transforms → Ridge MMM → Bayesian MMM → optimiser |
-| `agents/insight_agent.py` | Converts OLS + Bayesian results into a pharma-grade narrative with credible intervals |
 | `tools/transforms.py` | Geometric adstock + Hill saturation transforms, wrapped as LangChain tools |
-| `tools/ols_mmm_tool.py` | Ridge-regularised MMM with non-negativity constraint and prior-contribution floor |
+| `tools/ols_mmm_tool.py` | Ridge MMM with non-negativity constraint, prior-contribution floor, per-period attribution time series |
 | `tools/bayesian_mmm_tool.py` | Bayesian MMM via PyMC — informative priors, 90% HDI per channel, MCMC convergence diagnostics |
-| `tools/optimizer_tool.py` | SLSQP budget reallocation optimiser using fitted ROIs |
-| `notebooks/01_mmm_pipeline_walkthrough.ipynb` | Full MMM pipeline walkthrough — transforms, OLS, optimiser |
-| `notebooks/02_agent_deep_dive.ipynb` | End-to-end agent run with annotated outputs |
-| `data/raw/` | Ready-to-use synthetic datasets (weekly + monthly) with pre-run results |
-| `config/config.yaml` | Channel definitions, model hyperparameters, adstock priors — single config for everything |
+| `tools/optimizer_tool.py` | SLSQP budget reallocation optimiser using fitted ROIs and per-channel corridors |
+
+### Geo layer (6 US territories)
+
+| Component | Description |
+|---|---|
+| `tools/geo_mmm_tool.py` | Ridge MMM per territory — in-memory transforms, prior floor, post-hoc seasonal ROI split, response curve params |
+| `tools/geo_bayesian_mmm_tool.py` | Bayesian MMM per territory (PyMC) — same as national, run independently for each territory |
+| `tools/geo_hierarchical_mmm_tool.py` | Hierarchical Bayesian model — single joint PyMC model with partial pooling across all 6 territories via log-normal hyperpriors; Mountain territory borrows ROI estimates from larger markets |
+| `tools/geo_optimizer_tool.py` | Two-level SLSQP — Level 1: channel mix per territory; Level 2: territory budget allocation |
+
+### Agents & insights
+
+| Component | Description |
+|---|---|
+| `agents/planner_agent.py` | Orchestrator — runs the full pipeline; falls back to direct mode when no API key |
+| `agents/analytics_agent.py` | LangChain agent that calls transforms → Ridge MMM → Bayesian MMM → optimiser |
+| `agents/insight_agent.py` | Converts OLS + Bayesian + Hierarchical results into a pharma-grade narrative with credible intervals, national hyperprior ROI rankings, and Mountain partial-pooling corrections |
+| `scripts/generate_dataset.py` | Synthetic vaccine campaign dataset generator — 12 channels, realistic pharma seasonality, 6 geo territories |
+
+### Dashboard (7 tabs)
+
+| Tab | Contents |
+|-----|----------|
+| **Overview** | KPI cards, spend mix donut, scripts time-series with vaccine season bands |
+| **Ridge MMM** | Channel contributions bar chart, ROI bar chart, control variable coefficients, full results table |
+| **Bayesian MMM** | Contributions with 90% HDI error bars, OLS vs Bayesian ROI scatter, control posteriors |
+| **Attribution** | Per-period stacked area decomposition (baseline + channels + actual overlay), contribution waterfall |
+| **Budget** | Current vs recommended overlay bar chart, reallocation table |
+| **Geo** | Territory KPIs, US choropleth, channel contributions, response curves, seasonal ROI heatmap, Bayesian + Hierarchical sections, two-level optimizer, what-if simulator |
+| **Insights** | Rendered Markdown narrative, download button |
 
 ---
 
@@ -40,44 +64,49 @@ If you've ever spent weeks wrangling claims data, fitting adstock curves, and th
 
 - **12-channel HCP + DTC split** — rep visits, medical congress, journal ads, speaker programs, samples/coupons, HCP digital, HCP email, DTC TV, DTC digital, OOH, patient email, patient advocacy
 - **Vaccine seasonality** — Sep–Nov peak, summer trough, Q1 moderate; applied per-channel with calibrated strength
-- **Staggered congress pulses** — rep visits pulse in Aug+Oct; medical congress in Feb+May; speaker programs 1 month post-congress (Mar/Jun/Nov) — prevents artificial HCP channel collinearity
-- **2-week detailing lag** — HCP channel contributions are shifted 2 weeks in the data-generating process, matching real pharma conversion dynamics
-- **Competitor spend + price index** — two control variables included as model controls; Bayesian model uses informed negative priors on both
-- **Prior-contribution floor** — for channels Ridge cannot separately identify, contributions are estimated from `prior_roi` in config, clearly flagged as `prior_estimate` vs `model` in all outputs
-- **Dual-model insight narrative** — Claude reads both OLS and Bayesian results, cites credible intervals, and flags where models agree vs diverge
+- **Staggered congress pulses** — rep visits pulse in Aug+Oct; medical congress in Feb+May; speaker programs 1 month post-congress — prevents artificial HCP channel collinearity
+- **2-week detailing lag** — HCP contributions shifted 2 weeks in data-generating process, matching real pharma conversion dynamics
+- **Competitor spend + price index** — two control variables included with informed negative priors in the Bayesian model
+- **Prior-contribution floor** — for channels Ridge cannot separately identify, contributions estimated from `prior_roi` in config, clearly flagged `prior_estimate` vs `model` in all outputs
+- **Seasonal ROI split** — post-hoc split of Ridge ROI into in-season / off-season using marginal efficiency ratios; surfaces saturation-driven ROI differences without adding collinear interaction features
+- **Partial pooling** — hierarchical Bayesian model shares national hyperpriors across all territories; dramatically improves Mountain (small market) estimates that Ridge gets wrong
+- **Attribution decomposition** — full per-period baseline + channel breakdown stored in JSON and visualised as stacked area + waterfall
 
 ---
 
 ## 🤖 Agent Architecture
 
 ```
-python run.py [--bayesian] [--no-insights] [--freq monthly]
+python run.py [--bayesian] [--geo] [--geo-bayesian] [--geo-hierarchical] [--geo-insights] [--no-insights] [--freq monthly]
     │
     ▼
-┌─────────────────────────────────────────────────────┐
-│                  Planner Agent                      │
-│  Orchestrates pipeline; falls back to direct mode   │
-│  when no API key is set (zero cost, same outputs)   │
-└────────────┬────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                       Planner Agent                          │
+│  Orchestrates pipeline; falls back to direct mode (no LLM)  │
+└────────────┬─────────────────────────────────────────────────┘
              │
-    ┌────────┴────────┐
-    ▼                 ▼
-┌──────────────────┐  ┌─────────────────────────────┐
-│  Analytics Agent │  │       Insight Agent          │
-│  (LLM-orchestr.) │  │  Reads OLS + Bayesian JSON   │
-│                  │  │  Writes pharma narrative with │
-│  Step 1: Transforms  │  credible intervals + HDI    │
-│  Step 2: Ridge MMM   └─────────────────────────────┘
-│  Step 3: Optimiser
-│  Step 4: Bayesian MMM (--bayesian flag)
+    ┌────────┴──────────┐
+    ▼                   ▼
+┌──────────────────┐  ┌──────────────────────────────────────┐
+│  Analytics Agent │  │           Insight Agent              │
+│  (LLM / direct)  │  │  Reads OLS + Bayesian + Hierarchical │
+│                  │  │  Writes pharma narrative (national +  │
+│  1. Transforms   │  │  geo territory deep-dives)            │
+│  2. Ridge MMM    │  └──────────────────────────────────────┘
+│  3. Optimizer    │
+│  4. Bayesian MMM │
 └──────────────────┘
          │
          ▼
     LangChain Tools
-    ├── apply_all_transforms_tool   → *_transformed.csv
-    ├── run_ols_mmm_tool            → *_ols_results.json
-    ├── run_bayesian_mmm_tool       → *_bayesian_results.json
-    └── run_budget_optimizer_tool   → *_budget_optimized.json
+    ├── apply_all_transforms_tool
+    ├── run_ols_mmm_tool               → *_ols_results.json (+ attribution timeseries)
+    ├── run_budget_optimizer_tool      → *_budget_optimized.json
+    ├── run_bayesian_mmm_tool          → *_bayesian_results.json
+    ├── run_geo_ols_mmm_tool           → *_geo_ols_results.json (+ seasonal ROI split)
+    ├── run_geo_budget_optimizer_tool  → *_geo_budget_optimized.json
+    ├── run_geo_bayesian_mmm_tool      → *_geo_bayesian_results.json
+    └── run_geo_hierarchical_mmm_tool  → *_geo_hierarchical_results.json
 ```
 
 ---
@@ -87,58 +116,53 @@ python run.py [--bayesian] [--no-insights] [--freq monthly]
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/pharma-mmm-agent.git
+git clone https://github.com/Shubh-kr/pharma-mmm-agent.git
 cd pharma-mmm-agent
 pip install -r requirements.txt
 ```
 
-### 2. Set your API key
-
-Create a `.env` file in the project root:
+### 2. Set your API key (optional)
 
 ```bash
 # Anthropic (default — recommended)
 ANTHROPIC_API_KEY=your-key-here
-
-# Or OpenAI
-OPENAI_API_KEY=your-key-here
 ```
 
-Switch providers in `config/config.yaml` via `llm.provider: anthropic` or `llm.provider: openai`.
+Without a key the pipeline runs in **direct mode** — all models fit and results are saved, but no LLM narrative is generated.
 
-### 3. Generate the dataset (optional — sample data already included)
-
-```bash
-python scripts/generate_dataset.py
-```
-
-### 4. Run the pipeline
+### 3. Run the pipeline
 
 ```bash
-# OLS only — free, no API key needed, < 5 seconds
+# National only — no API key needed, < 5 seconds
 python run.py --no-insights
 
-# Full run — OLS + Claude insight narrative (~$0.02)
-python run.py
+# National + geo Ridge MMM + geo optimizer
+python run.py --no-insights --geo
 
-# Add Bayesian MMM — OLS + Bayesian + Claude narrative (~$0.02, +53 sec MCMC)
-python run.py --bayesian
+# Add per-territory Bayesian MMM (~2 min)
+python run.py --no-insights --geo-bayesian
 
-# Monthly data
-python run.py --freq monthly --bayesian
+# Add hierarchical Bayesian (~5 min)
+python run.py --no-insights --geo-hierarchical
+
+# Full run with AI narratives (needs API key)
+python run.py --geo --geo-insights
+
+# Monthly frequency
+python run.py --freq monthly --no-insights --geo
 ```
 
-### 5. Or explore the notebooks
+### 4. Launch the dashboard
 
 ```bash
-jupyter lab notebooks/
+streamlit run app.py
 ```
 
 ---
 
 ## 📊 Sample Output
 
-### Ridge MMM (from a live run)
+### Ridge MMM (national, weekly)
 
 ```
 Ridge MMM Results (R²=0.951, MAPE=3.0%)
@@ -152,73 +176,67 @@ Field Rep Visits               hcp   $21,414   0.532   27.5%    model
 Speaker Bureau Programs        hcp    $4,139   0.630   12.9%    model
 DTC Television                 dtc   $24,846   0.280   10.2%    model
 Medical Congress & Symposia    hcp    $6,925   0.728    1.7%    model
-HCP Programmatic Digital       hcp    $6,170   0.168    2.6%    prior*
-DTC Digital & Social           dtc    $9,238   0.150    2.4%    prior*
 ...
 ```
 
-### Bayesian MMM (PyMC, same data)
+### Hierarchical Bayesian (6 territories, national hyperpriors)
 
 ```
-Bayesian MMM Results (R²=0.825, MAPE=6.0%)
-4 chains × 2000 draws | R̂ max=1.001 ✓
-
-Channel                        ROI    Contrib%  90% HDI (2yr scripts)
-----------------------------------------------------------------------
-Field Rep Visits               0.665   34.8%   [+190.5K – +488.6K]
-Samples & Co-pay Coupons       0.578   21.8%   [+74.1K  – +358.2K]
-HCP Programmatic Digital       0.490    8.2%   [+11.4K  – +168.2K]
-Speaker Bureau Programs        0.787    6.0%   [+3.9K   – +153.6K]
-Medical Congress & Symposia    0.910    5.1%   [+3.4K   – +134.7K]
+National channel ROI consensus (pooled across all territories):
+Channel                          Nat ROI   σ_terr   Heterogeneity
+----------------------------------------------------------------
+Medical Congress & Symposia       0.910    1.472    low — national playbook
+Speaker Bureau Programs           0.787    1.587    moderate
+Field Rep Visits                  0.665    2.414    HIGH — territory-specific needed
+Patient Advocacy Partnerships     0.613    1.442    low — national playbook
 ...
 
-Controls: competitor: -397.6/mean-unit ✓  price: -461.9/10pts ✓
+Mountain — Ridge vs Hierarchical ROI (partial-pooling benefit):
+  Patient Advocacy     Ridge=0.210  Hier=0.613  Δ=+0.403
+  HCP Digital          Ridge=0.168  Hier=0.490  Δ=+0.322
+  Samples & Coupons    Ridge=0.198  Hier=0.578  Δ=+0.380
 ```
 
-### Budget optimisation
+### Seasonal ROI split (geo, weekly)
 
 ```
-Budget Optimisation — $938.6K/week (no budget increase)
-Projected uplift: +59.4% scripts with same spend
-
-Speaker Bureau Programs        $39.8K  →  $328.5K   +725%  Increase ↑
-Medical Congress & Symposia    $66.6K  →  $328.5K   +393%  Increase ↑
-DTC Television                $238.9K  →   $18.8K    -92%  Reduce ↓
+Channel                   Territory   In-season ROI  Off-season   Lift %
+------------------------------------------------------------------------
+Field Rep Visits          Northeast      0.444          0.561     -20.9%
+Medical Congress          Northeast      0.777          0.712      +9.1%
+Samples & Coupons         Pacific        0.421          0.476     -11.5%
 ```
 
 ---
 
 ## 🗂️ Dataset Schema
 
-### Weekly (`data/raw/mmm_weekly.csv`) — 104 rows × 24 columns
+### Weekly national (`data/raw/mmm_weekly.csv`) — 104 rows × 24 cols
 
 | Column | Type | Description |
 |---|---|---|
 | `date` | date | Week start (Monday) |
-| `rep_visits` | float ($K) | HCP: Field rep detailing visits spend |
-| `medical_congress` | float ($K) | HCP: Medical congress & symposia spend |
-| `journal_advertising` | float ($K) | HCP: Journal advertising spend |
-| `hcp_email` | float ($K) | HCP: Permission email to HCPs spend |
-| `hcp_digital` | float ($K) | HCP: Programmatic HCP digital display spend |
-| `speaker_programs` | float ($K) | HCP: KOL speaker bureau programs spend |
-| `samples_coupons` | float ($K) | HCP: Sample drops & co-pay coupon spend |
-| `dtc_tv` | float ($K) | DTC: Television advertising spend |
-| `dtc_digital` | float ($K) | DTC: Digital & social patient advertising spend |
-| `dtc_ooh` | float ($K) | DTC: Out-of-home advertising spend |
-| `patient_email` | float ($K) | DTC: Patient CRM email campaigns spend |
-| `patient_advocacy` | float ($K) | DTC: Patient advocacy partnerships spend |
-| `competitor_spend` | float ($K) | Competing vaccine brand spend — model control |
-| `price_index` | float (100=base) | Co-pay/price index; quarterly step-changes |
-| `total_spend` | float ($K) | Sum of all 12 brand channel spends |
+| `rep_visits` … `patient_advocacy` | float ($K) | 12 brand channel spend columns |
+| `competitor_spend` | float ($K) | Competing vaccine brand spend |
+| `price_index` | float (100=base) | Co-pay/price index |
 | `scripts_written` | int | Vaccine prescriptions written — outcome KPI |
-| `nrx_index` | float (0–100) | Normalised new Rx index |
-| `vaccine_season` | binary | 1 = Sep/Oct/Nov vaccine season |
-| `congress_week` | binary | 1 = congress month (Feb/May/Oct) |
+| `vaccine_season` | binary | 1 = Sep/Oct/Nov |
+| `congress_week` | binary | 1 = congress month |
 
-### Monthly (`data/raw/mmm_monthly.csv`) — 36 rows × 26 columns
-Same columns plus `hcp_total_spend`, `dtc_total_spend`, `month_name`, `congress_month`.
+### Geo (`data/raw/mmm_weekly_geo.csv`) — 624 rows × 26 cols
 
-Full schema: `data/raw/data_dictionary.csv`
+Long format (104 weeks × 6 territories). Same columns plus `territory`, `territory_label`, `territory_abbr`.
+
+### Territories
+
+| Key | Label | Market share | HCP mult | DTC mult |
+|---|---|---|---|---|
+| `northeast` | Northeast | 22% | 1.20 | 1.05 |
+| `southeast` | Southeast | 18% | 1.05 | 1.15 |
+| `midwest` | Midwest | 20% | 1.00 | 1.00 |
+| `southwest` | Southwest | 16% | 0.90 | 1.10 |
+| `mountain` | Mountain | 8% | 0.85 | 0.90 |
+| `pacific` | Pacific | 16% | 1.15 | 1.20 |
 
 ---
 
@@ -226,28 +244,39 @@ Full schema: `data/raw/data_dictionary.csv`
 
 ### Ridge MMM (frequentist)
 
-- Geometric adstock per channel (decay rates in config, e.g. rep visits 0.6, medical congress 0.75)
-- Hill saturation transform (normalised 0–1, alpha per channel)
-- Ridge regression (alpha=1.0) with non-negativity constraint on channel coefficients
-- Month dummies + congress flag + competitor spend + price index as controls
-- **Prior-contribution floor**: channels that Ridge cannot separately identify (collinear with seasonality dummies) receive a contribution estimated from their `prior_roi`, flagged as `prior_estimate` in all outputs
-- Suitable for: interpretability-first use cases, fast iteration, budget optimisation input
+- Geometric adstock per channel → Hill saturation → Ridge regression (α=1.0, configurable)
+- Non-negativity constraint on channel coefficients
+- Prior-contribution floor for channels collinear with seasonality dummies
+- Blended ROI: 60% config prior + 40% model estimate
+- **Attribution time series**: per-period `baseline_timeseries` + `contribution_timeseries` per channel stored in JSON for dashboard decomposition
 
 ### Bayesian MMM (PyMC)
 
-- Uses pre-computed adstocked + saturated features from the Ridge transform step
-- `HalfNormal` priors on channel betas calibrated to `prior_roi × mean_scripts × 0.5` — ensures all 12 channels receive non-zero posteriors without a heuristic floor
-- Informed negative priors on competitor (`beta_competitor ~ Normal(-mean_y × 0.03, ...)`) and price — correctly recovers negative posteriors even with weak raw signal
-- 90% credible intervals (5th–95th percentile) on every channel contribution
-- MCMC convergence via R̂: values < 1.05 indicate good chain mixing
-- Runtime: ~53 seconds on a laptop (4 chains × 2000 draws)
-- Suitable for: uncertainty quantification, stakeholder communication, channels with weak signal
+- `HalfNormal` priors on channel betas calibrated from `prior_roi × mean_y × 0.5`
+- Informed negative priors on competitor and price controls
+- 90% HDI (5th–95th percentile) on every channel
+- Runtime: ~53 seconds national, ~20 min for 6 territories
+
+### Hierarchical Bayesian MMM (PyMC)
+
+- Single joint model across all 6 territories
+- Log-normal non-centred hyperpriors on channel betas — forces positivity, handles the 3× market size range naturally
+- `national_hyperpriors` block: `mu_beta_mean`, `sigma_terr_mean`, `national_roi_mean` per channel
+- `sigma_terr_mean` measures territory heterogeneity — HIGH (>2) means territory-specific strategy required
+- Mountain borrows strength from all other territories; corrects large under-estimates from the independent Ridge model
+- Runtime: ~5 minutes; weekly R̂=1.005, monthly R̂=1.004
+
+### Seasonal ROI Split
+
+- Post-hoc computation using marginal efficiency ratio `(avg_sat/avg_spend)` per season
+- Scales the already-blended `estimated_roi` proportionally, preserving the observation-weighted mean
+- Avoids the collinearity problems of explicit interaction features
 
 ---
 
 ## 🔧 Configuration
 
-All parameters live in `config/config.yaml` — no code changes needed for routine tuning:
+All parameters live in `config/config.yaml`:
 
 ```yaml
 llm:
@@ -256,30 +285,39 @@ llm:
 
 channels:
   rep_visits:
-    adstock_decay: 0.60      # carryover rate (0=none, 1=full)
-    saturation: 0.55         # diminishing returns (lower=faster saturation)
-    prior_roi: 0.55          # expected ROI — used as Bayesian prior + Ridge floor
+    adstock_decay: 0.60
+    saturation: 0.55
+    prior_roi: 0.55
     channel_type: hcp
     label: "Field Rep Visits"
-  # ... all 12 channels
 
 ols_model:
-  ridge_alpha: 1.0                  # regularisation; lower = less shrinkage
-  prior_contribution_weight: 0.15   # share reserved for unidentifiable channels
-  seasonality_dummies: true
-  congress_control: true
-  competitor_control: true          # includes competitor_spend as control
-  price_control: true               # includes price_index as control
+  ridge_alpha: 1.0
+  prior_contribution_weight: 0.15
+  season_interactions: true      # post-hoc seasonal ROI split
 
 bayesian_model:
   draws: 2000
   tune: 1000
   chains: 4
-  target_accept: 0.90
+  geo_draws: 1000                # per-territory Bayesian
+  hier_draws: 600                # hierarchical joint model
+  hier_chains: 2
 
 optimizer:
-  min_channel_share: 0.02    # floor: no channel < 2% of budget
-  max_channel_share: 0.35    # cap: no channel > 35% of budget
+  max_spend_increase_factor: 2.5
+  max_spend_decrease_factor: 0.5
+  max_territory_increase_factor: 1.30   # tighter — field ops can't redeploy fast
+  max_territory_decrease_factor: 0.80
+
+territories:
+  northeast:
+    market_size: 4400
+    spend_share: 0.22
+    hcp_mult: 1.20
+    dtc_mult: 1.05
+    season_str: 1.05
+    states: [NY, NJ, CT, MA, RI, VT, NH, ME, PA]
 ```
 
 ---
@@ -288,20 +326,69 @@ optimizer:
 
 ```
 langchain>=0.2.0
-langchain-openai>=0.1.0
 langchain-anthropic>=0.1.0
+langchain-openai>=0.1.0
 pymc>=5.0.0
-arviz>=0.17.0,<0.18     # 0.18+ requires Python 3.10
-scipy>=1.9.0,<1.11      # scipy 1.11+ removed signal.gaussian used by arviz 0.17
+arviz>=0.17.0,<0.18
+scipy>=1.9.0,<1.11
 scikit-learn>=1.3.0
 statsmodels>=0.14.0
 pandas>=2.0.0
 numpy>=1.24.0
 plotly>=5.18.0
+streamlit>=1.35.0
 pyyaml>=6.0
 python-dotenv>=1.0.0
-jupyter>=1.0.0
 ```
+
+---
+
+## 🗺️ Phase 1 — Completed ✅
+
+**National MMM pipeline**
+- [x] Synthetic pharma dataset generator (weekly + monthly, realistic DGP)
+- [x] Geometric adstock + Hill saturation transforms
+- [x] Ridge MMM with non-negativity constraint and prior-contribution floor
+- [x] Bayesian MMM (PyMC, MCMC, 90% HDI per channel)
+- [x] SLSQP budget optimizer with per-channel corridor constraints
+- [x] LLM insight narrative (Claude + GPT-4o)
+- [x] Attribution decomposition: per-period stacked area + contribution waterfall
+
+**Geo MMM pipeline (6 US territories)**
+- [x] Geo dataset generator (long format, territory-scaled spend + ROI)
+- [x] Geo Ridge MMM per territory with in-memory transforms
+- [x] Post-hoc seasonal ROI split (in-season vs off-season marginal efficiency)
+- [x] Bayesian MMM per territory (PyMC, 90% HDI, R̂ convergence)
+- [x] Hierarchical Bayesian MMM — partial pooling with national hyperpriors
+- [x] Two-level geo optimizer (channel mix + territory allocation)
+- [x] Geo LLM narrative with hierarchical hyperprior context
+
+**Streamlit dashboard (7 tabs)**
+- [x] Overview, Ridge MMM, Bayesian MMM, Attribution, Budget, Geo, Insights
+- [x] Response curves per territory (Hill saturation curves, operating-point dots)
+- [x] Seasonal ROI heatmap (territory × channel diverging colorscale)
+- [x] What-if geo budget simulator (6 territory sliders + preset buttons)
+- [x] Hierarchical Bayesian section in Geo tab
+
+---
+
+## 🔭 Phase 2 — Planned
+
+**Measurement & experimentation**
+- [ ] **Incrementality testing planner** — Translate Bayesian HDI + Ridge vs Bayesian disagreement into prioritised geo holdout / lift test recommendations; identify which territory × channel has the most to gain from an experiment
+- [ ] **iROAS estimator** — Geo-based lift test simulation using the hierarchical model's territory baselines as counterfactuals
+
+**Planning tools**
+- [ ] **Scenario planner** — Given a target NRx goal, work backwards to the required budget and channel mix (inverse of the optimizer)
+- [ ] **Budget scenario comparison** — Side-by-side view of 2–3 named scenarios (current / optimizer / custom) with projected scripts for each; useful for budget cycle presentations
+
+**Data & operationalisation**
+- [ ] **Real data ingestion** — CSV upload flow in the dashboard; auto-detect date format, channel columns, outcome column; validation against expected schema
+- [ ] **Automated refresh** — Scheduled pipeline run (weekly/monthly) that refit models and regenerates narratives when new spend data is dropped into `data/raw/`
+
+**Output & reporting**
+- [ ] **PDF / slide export** — Export the insight narrative + charts as a board-ready PDF or PowerPoint-ready slide deck
+- [ ] **IQVIA / Symphony schema adapter** — Pre-built column mapping for standard pharma claims data providers
 
 ---
 
@@ -310,7 +397,7 @@ jupyter>=1.0.0
 Built by **Shubham Kumar** — Senior Data Scientist at Deloitte with 6+ years building production ML systems for pharma and life sciences. This template is distilled from real-world MMM projects spanning 20M+ patient profiles, vaccine campaigns across 247 zip codes, and commercial strategy work for some of the largest pharma brands globally.
 
 - 🔗 [LinkedIn](https://linkedin.com/in/YOUR_HANDLE)
-- 🐙 [GitHub](https://github.com/YOUR_USERNAME)
+- 🐙 [GitHub](https://github.com/Shubh-kr)
 - 📧 shubham.mle@gmail.com
 
 ---
@@ -319,24 +406,3 @@ Built by **Shubham Kumar** — Senior Data Scientist at Deloitte with 6+ years b
 
 MIT — use freely, modify, and build on top of this for your own projects.
 If this saves you a week of work, consider leaving a ⭐ on GitHub.
-
----
-
-## 🗺️ Roadmap
-
-- [x] Frequentist Ridge MMM with non-negativity constraint
-- [x] Bayesian MMM (PyMC) with informative priors and 90% HDI
-- [x] Dual-model insight narrative — OLS + Bayesian side-by-side
-- [x] Competitor spend + price index as model controls
-- [x] Prior-contribution floor for unidentifiable channels
-- [x] MCMC convergence diagnostics (R̂)
-- [x] Anthropic Claude / OpenAI provider switching
-- [ ] Streamlit dashboard for non-technical stakeholders
-- [ ] Multi-territory / geo-level MMM support
-- [ ] Integration with IQVIA / Symphony claims data schema
-- [ ] Bayesian adstock decay fitting (within-model, not pre-computed)
-- [ ] Payer mix and formulary access as additional controls
-
----
-
-*Built for pharma data scientists who are tired of explaining adstock to stakeholders.*
