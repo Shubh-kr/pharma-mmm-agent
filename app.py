@@ -949,6 +949,99 @@ def _render_geo_hierarchical(geo_hier: dict, config: dict):
     _render_geo_bayesian(geo_hier, config)
 
 
+def _render_season_interactions(geo_ols: dict, config: dict):
+    """Heatmap: territory × channel → season_lift_pct (diverging, green=better in-season)."""
+    territories = (geo_ols or {}).get("territories", {})
+    if not territories:
+        return
+
+    rows = []
+    for tk, td in territories.items():
+        for ck, cv in td.get("channels", {}).items():
+            if "season_lift_pct" in cv:
+                rows.append({
+                    "territory": td.get("label", tk),
+                    "channel":   cv["label"],
+                    "lift":      cv["season_lift_pct"],
+                    "roi_in":    cv["roi_in_season"],
+                    "roi_off":   cv["roi_off_season"],
+                })
+    if not rows:
+        return
+
+    df = pd.DataFrame(rows)
+    pivot = df.pivot_table(index="territory", columns="channel", values="lift", aggfunc="mean")
+
+    # Order channels by mean absolute lift descending
+    ch_order = pivot.abs().mean(axis=0).sort_values(ascending=False).index.tolist()
+    pivot = pivot[ch_order]
+
+    # Build hover text matrix (roi_in / roi_off per cell)
+    hover_df = df.pivot_table(index="territory", columns="channel", values="roi_in", aggfunc="mean")
+    hover_off = df.pivot_table(index="territory", columns="channel", values="roi_off", aggfunc="mean")
+    hover_df = hover_df.reindex(columns=ch_order).reindex(pivot.index)
+    hover_off = hover_off.reindex(columns=ch_order).reindex(pivot.index)
+
+    hover_text = []
+    for terr in pivot.index:
+        row_text = []
+        for ch in ch_order:
+            lift = pivot.loc[terr, ch] if ch in pivot.columns else None
+            ri   = hover_df.loc[terr, ch]   if ch in hover_df.columns   else None
+            ro   = hover_off.loc[terr, ch]  if ch in hover_off.columns  else None
+            if pd.notna(lift):
+                row_text.append(
+                    f"<b>{ch}</b><br>{terr}<br>"
+                    f"In-season ROI: {ri:.3f}<br>"
+                    f"Off-season ROI: {ro:.3f}<br>"
+                    f"Lift: {lift:+.1f}%"
+                )
+            else:
+                row_text.append("")
+        hover_text.append(row_text)
+
+    abs_max = max(abs(df["lift"].min()), abs(df["lift"].max()), 5)
+
+    fig = go.Figure(go.Heatmap(
+        z=pivot.values.tolist(),
+        x=ch_order,
+        y=list(pivot.index),
+        text=[[f"{v:+.1f}%" if pd.notna(v) else "" for v in row] for row in pivot.values.tolist()],
+        hovertext=hover_text,
+        hovertemplate="%{hovertext}<extra></extra>",
+        texttemplate="%{text}",
+        colorscale=[
+            [0.0,  "#B91C1C"],
+            [0.5,  "#F9FAFB"],
+            [1.0,  "#15803D"],
+        ],
+        zmid=0,
+        zmin=-abs_max,
+        zmax=abs_max,
+        colorbar=dict(
+            title="Season lift %",
+            ticksuffix="%",
+            thickness=14,
+            len=0.8,
+        ),
+        xgap=2,
+        ygap=2,
+    ))
+    fig.update_layout(
+        height=max(280, 60 * len(pivot) + 80),
+        margin=dict(t=10, b=10, l=0, r=0),
+        xaxis=dict(side="bottom", tickangle=-30, title=None),
+        yaxis=dict(title=None, autorange="reversed"),
+        font=dict(size=11),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(
+        "Green = higher in-season ROI (channel punches above weight during vaccine season). "
+        "Red = lower in-season ROI (channel saturates with increased seasonal spend). "
+        "Only model-identified channels shown."
+    )
+
+
 def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_hier, geo_narrative, config):
     territories_cfg = config.get("territories", {})
 
@@ -1106,6 +1199,15 @@ def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_hier, geo_narrative, config
                         y=1.02, xanchor="left", x=0),
         )
         st.plotly_chart(fig, use_container_width=True)
+
+    # ── Seasonal ROI split heatmap ─────────────────────────────────────────────
+    any_season = any(
+        td.get("has_season_interactions", False)
+        for td in (geo_ols or {}).get("territories", {}).values()
+    )
+    if any_season:
+        st.subheader("In-season vs off-season ROI (vaccine season lift)")
+        _render_season_interactions(geo_ols, config)
 
     # ── Bayesian per-territory section ────────────────────────────────────────
     if geo_bayes:
