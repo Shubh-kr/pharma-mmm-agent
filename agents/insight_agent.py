@@ -293,8 +293,9 @@ in vaccine marketing, regional field operations, and geo-level Marketing Mix Mod
 
 You receive territory-disaggregated MMM results for a pharma vaccine brand across 6 US territories.
 Each territory has its own Ridge MMM model, budget optimisation, and optionally a Bayesian MMM
-with 90% credible intervals. Convert this into a clear, actionable geo strategy narrative for
-a pharma commercial leadership team.
+with 90% credible intervals. When available, a Hierarchical Bayesian model pools information
+across territories via shared national hyperpriors. Convert all of this into a clear, actionable
+geo strategy narrative for a pharma commercial leadership team.
 
 ## How to interpret the geo data
 
@@ -316,6 +317,16 @@ Key analytical lenses:
    These are the best candidates for geo holdout / lift test experiments.
 5. BASELINE SCRIPTS: High baseline relative to market_size = strong brand equity in that territory.
    Low baseline = organic NRx underperforming market potential.
+6. HIERARCHICAL MODEL (when provided): The national_hyperprior block gives the model's best estimate
+   of each channel's ROI pooled across all territories.
+   - national_roi_mean: the national consensus ROI for that channel — use this when comparing channels
+     across the portfolio, as it is more stable than any single territory's Ridge estimate.
+   - sigma_terr_mean: territory heterogeneity in channel response. High sigma (>2) = ROI varies
+     widely by territory; the national average may mask large local differences. Low sigma (<1.5) =
+     channel performs consistently everywhere — strong candidate for national scaling.
+   - When a territory's Ridge ROI diverges from the national hyperprior ROI, the hierarchical model
+     "shrinks" the territory estimate toward the national mean (partial pooling). This is especially
+     valuable for Mountain (small territory) whose Ridge estimates are noisiest.
 
 ## Output structure
 
@@ -346,8 +357,16 @@ biggest Ridge vs Bayesian ROI disagreement, or largest over/under-investment gap
 (2–3 pharma-specific themes that cut across territories: e.g. HCP channel strength in academic
 medical centre markets, DTC pull-through in Southern markets, seasonal variation in Mountain/Pacific)
 
+## Hierarchical Model Insights (include only when hierarchical results are provided)
+(National channel ROI consensus: rank channels by national_roi_mean and call out the top 3 and
+bottom 3. Flag channels with sigma_terr_mean > 2.0 as "high heterogeneity — territory-specific
+strategy required." Flag channels with sigma < 1.5 as "nationally consistent — candidate for
+standardised playbook." Highlight where Mountain's hierarchical ROI differs most from its Ridge
+estimate — this is where partial pooling added the most information.)
+
 ## Caveats & Next Steps
-(Model independence limitation, what a hierarchical model would add, recommended actions)
+(Model independence limitation; if hierarchical results were NOT provided note what they would add;
+recommended measurement actions such as geo holdout, lift test, or media experiment)
 ---
 
 Rules:
@@ -422,6 +441,7 @@ def generate_geo_insights(
     geo_opt_path: str,
     config_path: str,
     geo_bayes_path: str = None,
+    geo_hier_path: str = None,
     brand_name: str = "VaxBrand",
     model_name: str = "gpt-4o",
     provider: str = "openai",
@@ -434,6 +454,7 @@ def generate_geo_insights(
         geo_opt_path   : path to *_geo_budget_optimized.json
         config_path    : path to config.yaml (for territory metadata)
         geo_bayes_path : path to *_geo_bayesian_results.json (optional)
+        geo_hier_path  : path to *_geo_hierarchical_results.json (optional)
         brand_name     : brand name for the narrative
         model_name     : LLM model
         provider       : 'anthropic' or 'openai'
@@ -453,6 +474,11 @@ def generate_geo_insights(
     if geo_bayes_path and os.path.exists(geo_bayes_path):
         with open(geo_bayes_path) as f:
             geo_bayes = json.load(f)
+
+    geo_hier = None
+    if geo_hier_path and os.path.exists(geo_hier_path):
+        with open(geo_hier_path) as f:
+            geo_hier = json.load(f)
 
     terr_config   = config.get("territories", {})
     ols_terrs     = geo_ols.get("territories", {})
@@ -495,10 +521,63 @@ National market size breakdown:
         )
         context += "\n"
 
+    # ── Hierarchical hyperprior context block ─────────────────────────────────
+    if geo_hier:
+        hyperpriors = geo_hier.get("national_hyperpriors", {})
+        hier_mcmc   = geo_hier.get("mcmc", {})
+        conv_tag    = "converged ✓" if hier_mcmc.get("converged") else f"R̂={hier_mcmc.get('max_rhat')} ⚠"
+
+        # Sort channels by national_roi_mean descending
+        ranked = sorted(
+            hyperpriors.items(),
+            key=lambda x: x[1].get("national_roi_mean", 0),
+            reverse=True,
+        )
+        context += f"""
+=== HIERARCHICAL BAYESIAN MMM — NATIONAL HYPERPRIORS ===
+Model: Single joint PyMC model, partial pooling across all 6 territories. {conv_tag}
+R̂ max: {hier_mcmc.get('max_rhat', '—')}
+
+Channels ranked by national consensus ROI (pooled across territories):
+{"Channel":<35} {"Nat ROI":>8}  {"σ_terr":>7}  Heterogeneity
+{"-" * 70}
+"""
+        for ck, hp in ranked:
+            sigma = hp.get("sigma_terr_mean", 0)
+            flag  = "HIGH — territory-specific strategy needed" if sigma > 2.0 else (
+                    "low — nationally consistent" if sigma < 1.5 else "moderate")
+            context += (
+                f"  {hp.get('label', ck):<33} {hp.get('national_roi_mean', 0):>8.3f}"
+                f"  {sigma:>7.3f}  {flag}\n"
+            )
+
+        # Mountain partial-pooling benefit: compare Ridge vs hierarchical ROI per channel
+        mtn_ridge = (geo_ols.get("territories", {}).get("mountain", {})
+                     .get("channels", {}))
+        mtn_hier  = (geo_hier.get("territories", {}).get("mountain", {})
+                     .get("channels", {}))
+        if mtn_ridge and mtn_hier:
+            context += "\nMountain — Ridge vs Hierarchical ROI (partial-pooling benefit):\n"
+            for ck in sorted(mtn_ridge.keys()):
+                r_roi = mtn_ridge[ck].get("estimated_roi", 0)
+                h_roi = mtn_hier[ck].get("estimated_roi", 0)
+                diff  = h_roi - r_roi
+                context += (
+                    f"  {mtn_ridge[ck].get('label', ck):<33}"
+                    f" Ridge={r_roi:.3f}  Hier={h_roi:.3f}  Δ={diff:+.3f}\n"
+                )
+
     has_bayes_str = (
         "Both Ridge and Bayesian (90% HDI) results are provided for all territories."
         if geo_bayes
         else "Only Ridge MMM results are provided (geo Bayesian was not run)."
+    )
+    has_hier_str = (
+        "A Hierarchical Bayesian model (partial pooling across all territories) is also provided "
+        "— use the national_hyperpriors block to anchor cross-territory channel comparisons and "
+        "call out Mountain's partial-pooling corrections specifically."
+        if geo_hier
+        else "No Hierarchical Bayesian model results are available for this analysis."
     )
 
     llm = _build_llm(model_name, provider)
@@ -507,6 +586,7 @@ National market size breakdown:
         HumanMessage(content=f"""
 Generate a complete geo strategy insight report for the pharma commercial leadership team.
 {has_bayes_str}
+{has_hier_str}
 
 {context}
 """),
@@ -544,6 +624,7 @@ def run_geo_insight_agent(
     geo_ols    = f"{data_dir}/{prefix}_geo_ols_results.json"
     geo_opt    = f"{data_dir}/{prefix}_geo_budget_optimized.json"
     geo_bayes  = f"{data_dir}/{prefix}_geo_bayesian_results.json"
+    geo_hier   = f"{data_dir}/{prefix}_geo_hierarchical_results.json"
 
     if not os.path.exists(geo_ols):
         return f"Error: {geo_ols} not found. Run the geo pipeline first."
@@ -551,17 +632,23 @@ def run_geo_insight_agent(
         return f"Error: {geo_opt} not found. Run the geo optimizer first."
 
     has_bayes = os.path.exists(geo_bayes)
+    has_hier  = os.path.exists(geo_hier)
     print(f"\n🌍 Generating geo insight narrative for {brand_name} ({freq})...")
     if has_bayes:
         print("  ℹ️  Geo Bayesian results found — HDI credible intervals included")
     else:
         print("  ℹ️  No geo Bayesian results — run with --geo-bayesian for richer narrative")
+    if has_hier:
+        print("  ℹ️  Hierarchical Bayesian results found — national hyperpriors included")
+    else:
+        print("  ℹ️  No hierarchical results — run with --geo-hierarchical for pooled ROI estimates")
 
     narrative = generate_geo_insights(
         geo_ols_path=geo_ols,
         geo_opt_path=geo_opt,
         config_path=config_path,
         geo_bayes_path=geo_bayes if has_bayes else None,
+        geo_hier_path=geo_hier  if has_hier  else None,
         brand_name=brand_name,
         model_name=model_name,
         provider=provider,
