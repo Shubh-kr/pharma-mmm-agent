@@ -138,43 +138,41 @@ Rendered inside the Geo tab between the optimizer expanders and the AI narrative
 
 Math: `Δ Scripts ≈ roi_efficiency[t] × Δ Budget[t]` summed across territories. Proportionally scales allocations to `total_national_budget_k` when the user over/under-allocates. Preset buttons seed `st.session_state[f"whatif_s_{tk}"]` before slider rendering — this is the correct Streamlit pattern for programmatic slider resets.
 
-## Session progress (as of 2026-06-05)
+## Phase 1 complete — all PRs merged to main (PRs #1–#8 + docs)
 
-### Completed — previous sessions (merged to main, PRs #1–#4)
+### PRs #1–#4 (previous sessions)
 - Geo dataset generator, Geo Ridge MMM, two-level geo optimizer, Geo tab (choropleth, stacked bar, optimizer table, expanders)
-- Geo Bayesian MMM per territory (PyMC, ~2 min total), Ridge vs Bayesian scatter, convergence table, HDI error bars, uncertainty heatmap
-- Geo AI narrative (`run_geo_insight_agent()`), what-if geo budget simulator with 6 territory sliders + preset buttons
-- Monthly geo pipeline + freq-aware dashboard labels (`tab_overview`, `tab_ridge`)
-- Hierarchical Bayesian geo MMM (`tools/geo_hierarchical_mmm_tool.py`) — partial pooling via log-normal non-centred hyperpriors; weekly R̂=1.005, monthly R̂=1.004
+- Geo Bayesian MMM per territory (PyMC, ~2 min), Ridge vs Bayesian scatter, convergence table, HDI error bars, uncertainty heatmap
+- Geo AI narrative (`run_geo_insight_agent()`), what-if geo budget simulator
+- Monthly geo pipeline + freq-aware dashboard labels
+- Hierarchical Bayesian geo MMM (`tools/geo_hierarchical_mmm_tool.py`) — log-normal non-centred hyperpriors; weekly R̂=1.005, monthly R̂=1.004
 
-### Completed — this session (merged to main, PRs #5–#8)
+### PRs #5–#8 (this session)
 
 **PR #5 — Post-hoc seasonal ROI split + heatmap**
-- `_season_roi_split()` in `geo_mmm_tool.py` — uses marginal efficiency ratio (`avg_sat/avg_spend`) per season to scale already-blended `estimated_roi`; preserves observation-weighted mean
-- **Critical fix:** original approach re-clipped raw betas against `prior * 2.5` ceiling → both in/off-season values hit the same ceiling → all lifts were 0.0%. Switched to ratio-based scaling which survives the blending.
-- Results: Field Rep Visits -21–23% in-season (saturation-driven), Medical Congress +8–12% (event-concentrated spend pays off in season)
-- `_render_season_interactions()` in `app.py`: territory × channel heatmap, diverging green/red colorscale, placed after stacked bar and before Bayesian section
-- Also adds `adstock_x_max_k` and `avg_saturated` to per-channel JSON (needed by response curves)
+- `_season_roi_split()` rewritten to use marginal efficiency ratio (`avg_sat/avg_spend`) per season — original clip-based approach zeroed all lifts (0.0%)
+- Field Rep Visits -21–23% in-season; Medical Congress +8–12%; `_render_season_interactions()` heatmap in Geo tab
 
 **PR #6 — Response curves per territory**
-- `_render_response_curves()` in `app.py`: channel dropdown (contribution-sorted) + one Hill saturation curve per territory
-- x-axis = raw spend $K; uses steady-state adstock proxy `x_ss = x_raw / (1 - decay)` normalised by `adstock_x_max_k`
-- Operating-point dots (white-outlined) mark each territory's current avg spend on the curve
-- 80% saturation reference line; Mountain saturates earliest (small x_max → steeper curve)
-- `geo_mmm_tool.py`: stores `adstock_x_max_k` and `avg_saturated` per channel to avoid recomputing adstock in the dashboard
+- `_render_response_curves()`: channel dropdown + Hill saturation curve per territory; steady-state adstock proxy `x_ss = x_raw / (1 - decay)`; operating-point dots; 80% saturation reference line
+- `geo_mmm_tool.py` stores `adstock_x_max_k` and `avg_saturated` per channel
 
 **PR #7 — Hierarchical model in geo insight narrative**
-- `generate_geo_insights()` / `run_geo_insight_agent()` in `agents/insight_agent.py` now auto-detects `*_geo_hierarchical_results.json`
-- Injects `=== HIERARCHICAL BAYESIAN MMM — NATIONAL HYPERPRIORS ===` context block: channels ranked by `national_roi_mean`, `sigma_terr_mean` flagged HIGH/moderate/low, Mountain partial-pooling correction table
-- `GEO_INSIGHT_SYSTEM_PROMPT` extended with interpretation lens #6 (hyperpriors, sigma, partial pooling) and dedicated output section
-- Key numbers surfaced: Medical Congress tops national ROI (0.91), Field Rep Visits is HIGH heterogeneity (σ=2.41); Mountain corrections: Patient Advocacy +0.40, HCP Digital +0.32, Samples +0.38
+- `insight_agent.py` auto-detects `*_geo_hierarchical_results.json`; injects national hyperprior ROI ranking, `sigma_terr_mean` flags, Mountain partial-pooling correction table into LLM prompt
+- System prompt extended with interpretation lens #6 and dedicated output section
 
 **PR #8 — Attribution decomposition tab**
-- `ols_mmm_tool.py` and `geo_mmm_tool.py`: both now emit `dates`, `actuals`, `baseline_timeseries`, `contribution_timeseries` in OLS JSON. Model channels use `beta_unscaled × sat[t]`; prior-estimated channels distribute `total_contribution` ∝ saturation curve. Baseline = y_pred minus model-channel contributions.
-- New `tab_attribution()` in `app.py`: stacked area chart (baseline grey + 12 channel layers + dotted actual overlay), contribution waterfall (spacer-bar stacking technique — `go.Waterfall` only supports uniform colors), KPI metrics (baseline scripts, channel-driven %, avg scripts/period)
-- Geo section: territory dropdown showing same two charts per territory with R² KPI
-- Tab order updated: Overview | Ridge | Bayesian | **Attribution** | Budget | Geo | Insights
+- Both OLS tools now emit `dates`, `actuals`, `baseline_timeseries`, `contribution_timeseries` per period in JSON
+- New Attribution tab: stacked area (baseline + 12 channels + actual overlay) + waterfall (spacer-bar technique — `go.Waterfall` lacks per-bar color support); geo territory selector
+- Tab order: Overview | Ridge | Bayesian | Attribution | Budget | Geo | Insights
 
-## Next steps
+**Docs checkpoint**
+- `README.md` fully rewritten: all Phase 1 features, 7-tab dashboard, Phase 1 ✅ / Phase 2 roadmap
+- `PROJECT_STATUS.md` fully rewritten: architecture, file map, feature inventory tables, Phase 2 plans, key design decisions
 
-No currently planned roadmap items. Next direction TBD.
+## Next steps — Phase 2 candidates
+
+1. **Incrementality testing planner** — rank territory × channel candidates for geo holdout / lift tests using Bayesian HDI width + Ridge vs Bayesian disagreement
+2. **Scenario planner** — inverse optimizer: given a NRx target, solve for required budget and channel mix
+3. **Budget scenario comparison** — save and compare named scenarios (current / optimizer / custom) side-by-side
+4. **Real data ingestion** — CSV upload flow in the dashboard sidebar with schema auto-detection
