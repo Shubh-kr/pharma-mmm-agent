@@ -147,7 +147,7 @@ Math: `Δ Scripts ≈ roi_efficiency[t] × Δ Budget[t]` summed across territori
 - Monthly geo pipeline + freq-aware dashboard labels (`tab_overview`, `tab_ridge`)
 - Hierarchical Bayesian geo MMM (`tools/geo_hierarchical_mmm_tool.py`) — partial pooling via log-normal non-centred hyperpriors; weekly R̂=1.005, monthly R̂=1.004
 
-### Completed — this session (merged to main, PRs #5–#7)
+### Completed — this session (merged to main, PRs #5–#8)
 
 **PR #5 — Post-hoc seasonal ROI split + heatmap**
 - `_season_roi_split()` in `geo_mmm_tool.py` — uses marginal efficiency ratio (`avg_sat/avg_spend`) per season to scale already-blended `estimated_roi`; preserves observation-weighted mean
@@ -169,6 +169,12 @@ Math: `Δ Scripts ≈ roi_efficiency[t] × Δ Budget[t]` summed across territori
 - `GEO_INSIGHT_SYSTEM_PROMPT` extended with interpretation lens #6 (hyperpriors, sigma, partial pooling) and dedicated output section
 - Key numbers surfaced: Medical Congress tops national ROI (0.91), Field Rep Visits is HIGH heterogeneity (σ=2.41); Mountain corrections: Patient Advocacy +0.40, HCP Digital +0.32, Samples +0.38
 
+**PR #8 — Attribution decomposition tab**
+- `ols_mmm_tool.py` and `geo_mmm_tool.py`: both now emit `dates`, `actuals`, `baseline_timeseries`, `contribution_timeseries` in OLS JSON. Model channels use `beta_unscaled × sat[t]`; prior-estimated channels distribute `total_contribution` ∝ saturation curve. Baseline = y_pred minus model-channel contributions.
+- New `tab_attribution()` in `app.py`: stacked area chart (baseline grey + 12 channel layers + dotted actual overlay), contribution waterfall (spacer-bar stacking technique — `go.Waterfall` only supports uniform colors), KPI metrics (baseline scripts, channel-driven %, avg scripts/period)
+- Geo section: territory dropdown showing same two charts per territory with R² KPI
+- Tab order updated: Overview | Ridge | Bayesian | **Attribution** | Budget | Geo | Insights
+
 ## Next steps
 
-No currently planned roadmap items. All three items from the previous session's plan are complete. Next direction TBD.
+No currently planned roadmap items. Next direction TBD.
