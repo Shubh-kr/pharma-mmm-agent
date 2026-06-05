@@ -239,6 +239,24 @@ def _fit_territory(terr_df: pd.DataFrame, channels: list, config: dict, freq: st
     total_spend = sum(r["total_spend_k"] for r in channel_results.values())
     has_season = any("season_lift_pct" in v for v in channel_results.values())
 
+    # ── Per-period attribution time series ────────────────────────────────────
+    contrib_ts   = {}
+    model_ch_sum = np.zeros(len(y))
+    for i, ch in enumerate(channels):
+        if f"{ch}_saturated" not in terr_df.columns:
+            continue
+        sat_vals      = terr_df[f"{ch}_saturated"].values
+        coef_unscaled = ch_coefs[i] / (ch_scales[i] + 1e-9)
+        if contrib_source.get(ch) == "model":
+            ts            = coef_unscaled * sat_vals
+            model_ch_sum += ts
+        else:
+            total_c = contributions.get(ch, 0.0)
+            ts      = total_c * sat_vals / (sat_vals.sum() + 1e-9)
+        contrib_ts[ch] = [round(float(v), 2) for v in ts]
+
+    baseline_ts = y_pred - model_ch_sum
+
     return {
         "r_squared":               round(r2, 4),
         "mape_pct":                round(mape, 2),
@@ -249,6 +267,10 @@ def _fit_territory(terr_df: pd.DataFrame, channels: list, config: dict, freq: st
         "has_season_interactions": has_season,
         "channels":                channel_results,
         "controls":                control_coefs,
+        "dates":                   terr_df["date"].dt.strftime("%Y-%m-%d").tolist(),
+        "actuals":                 [round(float(v), 1) for v in y],
+        "baseline_timeseries":     [round(float(v), 1) for v in baseline_ts],
+        "contribution_timeseries": contrib_ts,
     }
 
 

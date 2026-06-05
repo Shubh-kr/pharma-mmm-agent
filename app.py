@@ -1486,6 +1486,220 @@ def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_hier, geo_narrative, config
         )
 
 
+def tab_attribution(ols, geo_ols, config, freq):
+    """Attribution decomposition: stacked area + waterfall for national and geo."""
+    if ols is None:
+        st.info("Run the pipeline first to see attribution results.")
+        return
+
+    ch_config = config.get("channels", {})
+
+    # Distinct color palette: HCP = blues, DTC = warm tones, baseline = grey
+    CH_COLORS = {
+        "rep_visits":         "#1D4ED8",
+        "medical_congress":   "#2563EB",
+        "journal_advertising":"#3B82F6",
+        "hcp_email":          "#60A5FA",
+        "hcp_digital":        "#93C5FD",
+        "speaker_programs":   "#1E40AF",
+        "samples_coupons":    "#BFDBFE",
+        "dtc_tv":             "#EA580C",
+        "dtc_digital":        "#F97316",
+        "dtc_ooh":            "#FB923C",
+        "patient_email":      "#FCA5A1",
+        "patient_advocacy":   "#DC2626",
+    }
+    BASELINE_COLOR = "#D1D5DB"
+
+    def _stacked_area(dates, actuals, baseline_ts, contrib_ts, channel_meta, title, mape):
+        """Stacked area (model decomposition) + actual scripts overlay."""
+        fig = go.Figure()
+
+        # Baseline layer
+        fig.add_trace(go.Scatter(
+            x=dates, y=baseline_ts,
+            name="Baseline",
+            stackgroup="one",
+            fillcolor=BASELINE_COLOR,
+            line=dict(color=BASELINE_COLOR, width=0),
+            hovertemplate="Baseline: %{y:,.0f}<extra></extra>",
+        ))
+
+        # Channel layers — contribution-sorted order
+        ch_order = sorted(
+            contrib_ts.keys(),
+            key=lambda c: channel_meta.get(c, {}).get("contribution_pct", 0),
+        )
+        for ch in ch_order:
+            ts    = contrib_ts[ch]
+            label = channel_meta.get(ch, {}).get("label", ch)
+            color = CH_COLORS.get(ch, "#94A3B8")
+            fig.add_trace(go.Scatter(
+                x=dates, y=ts,
+                name=label,
+                stackgroup="one",
+                fillcolor=color,
+                line=dict(color=color, width=0),
+                hovertemplate=f"{label}: %{{y:,.0f}}<extra></extra>",
+            ))
+
+        # Actual scripts overlay
+        fig.add_trace(go.Scatter(
+            x=dates, y=actuals,
+            name="Actual scripts",
+            mode="lines",
+            line=dict(color="#111827", width=1.5, dash="dot"),
+            hovertemplate="Actual: %{y:,.0f}<extra></extra>",
+        ))
+
+        fig.update_layout(
+            title=dict(text=title, font=dict(size=13)),
+            height=380,
+            margin=dict(t=40, b=10, l=0, r=0),
+            xaxis_title=None,
+            yaxis_title="Scripts written",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                        xanchor="left", x=0, font=dict(size=10)),
+            hovermode="x unified",
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption(
+            f"Stacked area = model decomposition (y_pred). "
+            f"Dotted line = actual scripts. Gap = model residual (MAPE {mape:.1f}%)."
+        )
+
+    def _waterfall(channel_meta, baseline_scripts, title):
+        """Waterfall: baseline → each channel's total contribution → grand total.
+
+        Built from go.Bar with invisible spacers so each segment gets its own
+        channel color (go.Waterfall only supports uniform increasing/decreasing colors).
+        """
+        ch_sorted = sorted(
+            [(ck, cv) for ck, cv in channel_meta.items()],
+            key=lambda x: x[1]["total_contribution"],
+            reverse=True,
+        )
+        total = baseline_scripts + sum(cv["total_contribution"] for _, cv in ch_sorted)
+        labels  = ["Baseline"] + [cv["label"] for _, cv in ch_sorted] + ["Total"]
+        heights = ([baseline_scripts]
+                   + [cv["total_contribution"] for _, cv in ch_sorted]
+                   + [total])
+        bar_colors = (
+            [BASELINE_COLOR]
+            + [CH_COLORS.get(ck, "#94A3B8") for ck, _ in ch_sorted]
+            + ["#374151"]
+        )
+
+        # Cumulative bottom for each bar (spacer height)
+        bottoms = [0.0]
+        running = baseline_scripts
+        for _, cv in ch_sorted:
+            bottoms.append(running)
+            running += cv["total_contribution"]
+        bottoms.append(0.0)  # Total bar starts at 0
+
+        fig = go.Figure()
+        # Invisible spacer bars that push each segment to the right height
+        fig.add_trace(go.Bar(
+            x=labels, y=bottoms,
+            marker_color="rgba(0,0,0,0)",
+            showlegend=False,
+            hoverinfo="skip",
+        ))
+        # Visible segment bars
+        fig.add_trace(go.Bar(
+            x=labels, y=heights,
+            marker_color=bar_colors,
+            text=[f"{v:,.0f}" for v in heights],
+            textposition="outside",
+            showlegend=False,
+            hovertemplate="%{x}: %{y:,.0f}<extra></extra>",
+        ))
+        fig.update_layout(
+            barmode="stack",
+            title=dict(text=title, font=dict(size=13)),
+            height=420,
+            margin=dict(t=40, b=10, l=0, r=0),
+            xaxis=dict(tickangle=-30),
+            yaxis_title="Scripts written",
+            showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── National attribution ───────────────────────────────────────────────────
+    st.header("National attribution")
+
+    freq_label = freq.capitalize()
+    dates      = ols.get("dates", [])
+    actuals    = ols.get("actuals", [])
+    baseline   = ols.get("baseline_timeseries", [])
+    contrib_ts = ols.get("contribution_timeseries", {})
+    ch_meta    = ols.get("channels", {})
+
+    if dates and actuals and baseline:
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            _stacked_area(dates, actuals, baseline, contrib_ts, ch_meta,
+                          f"{freq_label} scripts — channel decomposition",
+                          ols.get("mape_pct", 0))
+        with col2:
+            total_ch = sum(cv["total_contribution"] for cv in ch_meta.values())
+            total_all = ols.get("baseline_scripts", 0) + total_ch
+            st.metric("Baseline scripts", f"{ols.get('baseline_scripts', 0):,.0f}",
+                      help="Model intercept + control + seasonality effects")
+            st.metric("Channel-driven scripts", f"{total_ch:,.0f}",
+                      delta=f"{total_ch / max(total_all, 1) * 100:.0f}% of total")
+            st.metric("Avg scripts / period",
+                      f"{sum(actuals) / max(len(actuals), 1):,.0f}")
+
+        st.subheader("Contribution waterfall")
+        _waterfall(ch_meta, ols.get("baseline_scripts", 0),
+                   f"{freq_label} — total scripts decomposed by channel")
+    else:
+        st.info("Re-run the pipeline to generate time-series attribution data.")
+
+    # ── Geo attribution ────────────────────────────────────────────────────────
+    if geo_ols and geo_ols.get("territories"):
+        st.divider()
+        st.header("Geo attribution")
+
+        terr_items   = sorted(geo_ols["territories"].items())
+        terr_options = {tk: td.get("label", tk) for tk, td in terr_items}
+        selected_tk  = st.selectbox(
+            "Territory",
+            options=list(terr_options.keys()),
+            format_func=lambda k: terr_options[k],
+            key="attr_geo_terr",
+        )
+        td = geo_ols["territories"][selected_tk]
+
+        g_dates    = td.get("dates", [])
+        g_actuals  = td.get("actuals", [])
+        g_baseline = td.get("baseline_timeseries", [])
+        g_contrib  = td.get("contribution_timeseries", {})
+        g_ch_meta  = td.get("channels", {})
+
+        if g_dates and g_actuals and g_baseline:
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                _stacked_area(g_dates, g_actuals, g_baseline, g_contrib, g_ch_meta,
+                              f"{terr_options[selected_tk]} — {freq_label} channel decomposition",
+                              td.get("mape_pct", 0))
+            with col2:
+                total_ch = sum(cv["total_contribution"] for cv in g_ch_meta.values())
+                total_all = td.get("baseline_scripts", 0) + total_ch
+                st.metric("Baseline scripts", f"{td.get('baseline_scripts', 0):,.0f}")
+                st.metric("Channel-driven", f"{total_ch:,.0f}",
+                          delta=f"{total_ch / max(total_all, 1) * 100:.0f}% of total")
+                st.metric("Model R²", f"{td.get('r_squared', 0):.3f}")
+
+            st.subheader("Contribution waterfall")
+            _waterfall(g_ch_meta, td.get("baseline_scripts", 0),
+                       f"{terr_options[selected_tk]} — total scripts decomposed by channel")
+        else:
+            st.info("Re-run the geo pipeline to generate territory time-series data.")
+
+
 def tab_insights(freq):
     report_path = f"reports/mmm_{freq}_insights.md"
     if not os.path.exists(report_path):
@@ -1546,7 +1760,7 @@ def main():
     )
 
     tab_names = ["📈 Overview", "📊 Ridge MMM", "🧮 Bayesian MMM",
-                 "💰 Budget", "🗺️ Geo", "📝 Insights"]
+                 "🔍 Attribution", "💰 Budget", "🗺️ Geo", "📝 Insights"]
     tabs = st.tabs(tab_names)
 
     with tabs[0]:
@@ -1562,12 +1776,15 @@ def main():
         tab_bayesian(bayes, ols, config)
 
     with tabs[3]:
-        tab_budget(opt, config)
+        tab_attribution(ols, geo_ols, config, freq)
 
     with tabs[4]:
-        tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_hier, geo_narrative, config)
+        tab_budget(opt, config)
 
     with tabs[5]:
+        tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_hier, geo_narrative, config)
+
+    with tabs[6]:
         tab_insights(freq)
 
 
