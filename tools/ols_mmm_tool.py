@@ -185,6 +185,28 @@ def run_ols_mmm_tool(data_path: str, config_path: str, freq: str = "weekly") -> 
             reverse=True
         )
 
+        # ── Per-period attribution time series ────────────────────────────────
+        # model channels: beta_unscaled × sat[t]
+        # prior-estimated channels: distribute total_contribution ∝ saturation
+        # baseline: y_pred minus model-channel contributions (intercept + controls
+        #           + seasonality dummies)
+        contrib_ts = {}
+        model_ch_sum = np.zeros(len(y))
+        for i, ch in enumerate(channels):
+            if f"{ch}_saturated" not in df.columns:
+                continue
+            sat_vals      = df[f"{ch}_saturated"].values
+            coef_unscaled = ch_coefs[i] / (ch_scales[i] + 1e-9)
+            if contrib_source.get(ch) == "model":
+                ts            = coef_unscaled * sat_vals
+                model_ch_sum += ts
+            else:
+                total_c = contributions.get(ch, 0.0)
+                ts      = total_c * sat_vals / (sat_vals.sum() + 1e-9)
+            contrib_ts[ch] = [round(float(v), 2) for v in ts]
+
+        baseline_ts = y_pred - model_ch_sum
+
         result = {
             "model": "Ridge MMM",
             "frequency": freq,
@@ -200,6 +222,10 @@ def run_ols_mmm_tool(data_path: str, config_path: str, freq: str = "weekly") -> 
             ) / len(y)), 1),
             "channels": dict(sorted_channels),
             "controls": control_coefs,
+            "dates":                [d.strftime("%Y-%m-%d") for d in df["date"]],
+            "actuals":              [round(float(v), 1) for v in y],
+            "baseline_timeseries":  [round(float(v), 1) for v in baseline_ts],
+            "contribution_timeseries": contrib_ts,
         }
 
         out_path = data_path.replace("_transformed.csv", "_ols_results.json")
