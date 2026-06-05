@@ -140,58 +140,35 @@ Math: `Δ Scripts ≈ roi_efficiency[t] × Δ Budget[t]` summed across territori
 
 ## Session progress (as of 2026-06-05)
 
-### Completed — previous sessions (merged to main, PRs #1–#2)
+### Completed — previous sessions (merged to main, PRs #1–#4)
 - Geo dataset generator, Geo Ridge MMM, two-level geo optimizer, Geo tab (choropleth, stacked bar, optimizer table, expanders)
 - Geo Bayesian MMM per territory (PyMC, ~2 min total), Ridge vs Bayesian scatter, convergence table, HDI error bars, uncertainty heatmap
 - Geo AI narrative (`run_geo_insight_agent()`), what-if geo budget simulator with 6 territory sliders + preset buttons
+- Monthly geo pipeline + freq-aware dashboard labels (`tab_overview`, `tab_ridge`)
+- Hierarchical Bayesian geo MMM (`tools/geo_hierarchical_mmm_tool.py`) — partial pooling via log-normal non-centred hyperpriors; weekly R̂=1.005, monthly R̂=1.004
 
-### Completed — this session (merged to main, PRs #3–#4 + direct commits)
+### Completed — this session (merged to main, PRs #5–#7)
 
-**PR #3 — Monthly geo pipeline in dashboard**
-- Generated `mmm_monthly_geo_ols_results.json` and `mmm_monthly_geo_budget_optimized.json`
-- Geo tab already loaded files by freq prefix; the monthly results just hadn't been generated
-- Fixed hardcoded "weekly"/"Weeks" labels in `tab_overview` and `tab_ridge` — both functions now take `freq` param:
-  - "Avg weekly scripts" → "Avg monthly/weekly scripts"
-  - "Weeks" → "Months"/"Weeks"
-  - "Baseline scripts/wk" → "Baseline scripts/mo" or "/wk"
-  - "Avg wk spend $K" table header follows same pattern
+**PR #5 — Post-hoc seasonal ROI split + heatmap**
+- `_season_roi_split()` in `geo_mmm_tool.py` — uses marginal efficiency ratio (`avg_sat/avg_spend`) per season to scale already-blended `estimated_roi`; preserves observation-weighted mean
+- **Critical fix:** original approach re-clipped raw betas against `prior * 2.5` ceiling → both in/off-season values hit the same ceiling → all lifts were 0.0%. Switched to ratio-based scaling which survives the blending.
+- Results: Field Rep Visits -21–23% in-season (saturation-driven), Medical Congress +8–12% (event-concentrated spend pays off in season)
+- `_render_season_interactions()` in `app.py`: territory × channel heatmap, diverging green/red colorscale, placed after stacked bar and before Bayesian section
+- Also adds `adstock_x_max_k` and `avg_saturated` to per-channel JSON (needed by response curves)
 
-**PR #4 — Hierarchical Bayesian geo MMM** (`tools/geo_hierarchical_mmm_tool.py`)
-- Single joint PyMC model across all 6 territories with partial pooling via log-normal non-centred hyperpriors on channel betas
-- Mountain territory borrows ROI estimates from larger territories (key benefit)
-- **Critical design decision — log-normal baselines:** first run used Normal non-centred for territory baselines → Mountain and Midwest went negative. Switched to log-normal non-centred (`pt.exp(log_mu_bl + sigma_log_bl * z_bl)`) which forces positivity and handles the 3× range in market sizes naturally
-- Output: `*_geo_hierarchical_results.json` with top-level `national_hyperpriors` block (μ_beta, σ_terr, national_roi_mean per channel) + same territory structure as per-territory Bayesian
-- Dashboard: sidebar checkbox "Include Geo Hierarchical (~5 min)", new expander in Geo tab, `_render_geo_hierarchical()` shows hyperprior table then reuses `_render_geo_bayesian()`
-- CLI: `python run.py --geo-hierarchical` (works for both weekly and monthly)
-- Config: `hier_draws: 600`, `hier_tune: 400`, `hier_chains: 2` under `bayesian_model`
-- Results: weekly R̂=1.005, monthly R̂=1.004, both converged, all baselines positive
+**PR #6 — Response curves per territory**
+- `_render_response_curves()` in `app.py`: channel dropdown (contribution-sorted) + one Hill saturation curve per territory
+- x-axis = raw spend $K; uses steady-state adstock proxy `x_ss = x_raw / (1 - decay)` normalised by `adstock_x_max_k`
+- Operating-point dots (white-outlined) mark each territory's current avg spend on the curve
+- 80% saturation reference line; Mountain saturates earliest (small x_max → steeper curve)
+- `geo_mmm_tool.py`: stores `adstock_x_max_k` and `avg_saturated` per channel to avoid recomputing adstock in the dashboard
 
-**Direct commit — monthly hierarchical results**
-- `data/raw/mmm_monthly_geo_hierarchical_results.json` generated and committed to main
+**PR #7 — Hierarchical model in geo insight narrative**
+- `generate_geo_insights()` / `run_geo_insight_agent()` in `agents/insight_agent.py` now auto-detects `*_geo_hierarchical_results.json`
+- Injects `=== HIERARCHICAL BAYESIAN MMM — NATIONAL HYPERPRIORS ===` context block: channels ranked by `national_roi_mean`, `sigma_terr_mean` flagged HIGH/moderate/low, Mountain partial-pooling correction table
+- `GEO_INSIGHT_SYSTEM_PROMPT` extended with interpretation lens #6 (hyperpriors, sigma, partial pooling) and dedicated output section
+- Key numbers surfaced: Medical Congress tops national ROI (0.91), Field Rep Visits is HIGH heterogeneity (σ=2.41); Mountain corrections: Patient Advocacy +0.40, HCP Digital +0.32, Samples +0.38
 
-### In progress — `feat/season-interactions` branch
+## Next steps
 
-**Territory × time interactions** — implementation started, branch open but not yet committed:
-- **Design decision (important):** First attempted adding `sat_ch × vaccine_season` as explicit Ridge interaction features. This caused wildly unstable gammas on sparse territories (Mountain: -108604% lift for HCP Programmatic Digital) due to multicollinearity with month dummies and underdetermined system on 36 monthly observations.
-- **Switched to post-hoc seasonal ROI split** (cleaner, no model change):
-  - Keep Ridge model exactly as-is
-  - After fitting, evaluate the same beta at in-season vs off-season avg saturation/spend levels
-  - The ROI difference comes from saturation: more in-season spend → further along diminishing-returns curve → lower marginal ROI
-  - Only computed for model-identified channels (`contribution_source == "model"`, `beta > 1e-6`) — prior-estimated channels have beta ≈ 0, split would be meaningless
-  - Per-channel additions to JSON: `roi_in_season`, `roi_off_season`, `season_lift_pct`
-  - New helper `_season_roi_split()` in `geo_mmm_tool.py`; `has_season_interactions: bool` flag on territory result
-- Current state: `geo_mmm_tool.py` rewritten with post-hoc approach, **pipeline not yet re-run**, dashboard not yet updated, PR not yet opened
-- **Next action:** run `python run.py --no-insights --geo` to verify season lifts are sensible, then add dashboard heatmap and open PR
-
-## Next steps (exact, in order)
-
-1. **Finish `feat/season-interactions`** (currently on this branch):
-   - Run `python run.py --no-insights --geo` and verify `season_lift_pct` values are reasonable (expect ±5–30% for HCP channels, smaller for DTC)
-   - Run `python run.py --freq monthly --no-insights --geo` for monthly results
-   - Add `_render_season_interactions(geo_ols)` to `app.py`: heatmap territory (rows) × channel (cols) → `season_lift_pct`, diverging colorscale (green = better in season, red = worse)
-   - Place heatmap in Geo tab after the channel stacked-bar section, before the Bayesian section
-   - Commit result files + code changes, open PR
-
-2. **Response curves per territory** — visualise adstock+saturation curves by territory in dashboard (next roadmap item after season interactions)
-
-3. **Hierarchical model in geo narrative** — `run_geo_insight_agent()` currently reads only Ridge and per-territory Bayesian results; extend to include hierarchical national ROI summaries in the narrative context
+No currently planned roadmap items. All three items from the previous session's plan are complete. Next direction TBD.
