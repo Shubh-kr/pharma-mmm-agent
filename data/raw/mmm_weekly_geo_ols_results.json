@@ -22,6 +22,8 @@
           "total_contribution": 47060.8,
           "contribution_pct": 38.3,
           "contribution_source": "model",
+          "adstock_x_max_k": 173.97,
+          "avg_saturated": 0.7439,
           "roi_in_season": 0.443,
           "roi_off_season": 0.562,
           "season_lift_pct": -21.1
@@ -36,6 +38,8 @@
           "total_contribution": 2215.3,
           "contribution_pct": 1.8,
           "contribution_source": "model",
+          "adstock_x_max_k": 78.1,
+          "avg_saturated": 0.8532,
           "roi_in_season": 0.706,
           "roi_off_season": 0.735,
           "season_lift_pct": -4.1
@@ -49,7 +53,9 @@
           "estimated_roi": 0.132,
           "total_contribution": 2601.9,
           "contribution_pct": 2.1,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 22.77,
+          "avg_saturated": 0.8153
         },
         "hcp_email": {
           "label": "HCP Email Campaigns",
@@ -60,7 +66,9 @@
           "estimated_roi": 0.108,
           "total_contribution": 2128.9,
           "contribution_pct": 1.7,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 8.41,
+          "avg_saturated": 0.6627
         },
         "hcp_digital": {
           "label": "HCP Programmatic Digital",
@@ -71,7 +79,9 @@
           "estimated_roi": 0.168,
           "total_contribution": 3311.6,
           "contribution_pct": 2.7,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 27.44,
+          "avg_saturated": 0.7727
         },
         "speaker_programs": {
           "label": "Speaker Bureau Programs",
@@ -83,6 +93,8 @@
           "total_contribution": 18350.5,
           "contribution_pct": 14.9,
           "contribution_source": "model",
+          "adstock_x_max_k": 33.27,
+          "avg_saturated": 0.8817,
           "roi_in_season": 0.633,
           "roi_off_season": 0.629,
           "season_lift_pct": 0.5
@@ -96,7 +108,9 @@
           "estimated_roi": 0.198,
           "total_contribution": 3902.9,
           "contribution_pct": 3.2,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 60.36,
+          "avg_saturated": 0.8096
         },
         "dtc_tv": {
           "label": "DTC Television",
@@ -107,7 +121,9 @@
           "estimated_roi": 0.12,
           "total_contribution": 2365.4,
           "contribution_pct": 1.9,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 130.17,
+          "avg_saturated": 0.7882
         },
         "dtc_digital": {
           "label": "DTC Digital & Social",
@@ -119,6 +135,8 @@
           "total_contribution": 5593.9,
           "contribution_pct": 4.5,
           "contribution_source": "model",
+          "adstock_x_max_k": 45.03,
+          "avg_saturated": 0.7388,
           "roi_in_season": 0.337,
           "roi_off_season": 0.354,
           "season_lift_pct": -5.1
@@ -133,6 +151,8 @@
           "total_contribution": 24171.2,
           "contribution_pct": 19.7,
           "contribution_source": "model",
+          "adstock_x_max_k": 28.63,
+          "avg_saturated": 0.7065,
           "roi_in_season": 0.203,
           "roi_off_season": 0.212,
           "season_lift_pct": -4.2
@@ -147,6 +167,8 @@
           "total_contribution": 7159.3,
           "contribution_pct": 5.8,
           "contribution_source": "model",
+          "adstock_x_max_k": 5.21,
+          "avg_saturated": 0.7299,
           "roi_in_season": 0.227,
           "roi_off_season": 0.223,
           "season_lift_pct": 1.5
@@ -160,7 +182,9 @@
           "estimated_roi": 0.21,
           "total_contribution": 4139.5,
           "contribution_pct": 3.4,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 16.07,
+          "avg_saturated": 0.8526
         }
       },
       "controls": {
@@ -188,6 +212,8 @@
           "total_contribution": 12433.1,
           "contribution_pct": 20.8,
           "contribution_source": "model",
+          "adstock_x_max_k": 81.24,
+          "avg_saturated": 0.6763,
           "roi_in_season": 0.435,
           "roi_off_season": 0.564,
           "season_lift_pct": -22.9
@@ -202,6 +228,8 @@
           "total_contribution": 10754.6,
           "contribution_pct": 18.0,
           "contribution_source": "model",
+          "adstock_x_max_k": 27.26,
+          "avg_saturated": 0.8815,
           "roi_in_season": 0.744,
           "roi_off_season": 0.723,
           "season_lift_pct": 2.9
@@ -216,6 +244,8 @@
           "total_contribution": 5777.5,
           "contribution_pct": 9.7,
           "contribution_source": "model",
+          "adstock_x_max_k": 10.08,
+          "avg_saturated": 0.7647,
           "roi_in_season": 0.302,
           "roi_off_season": 0.31,
           "season_lift_pct": -2.5
@@ -229,7 +259,9 @@
           "estimated_roi": 0.108,
           "total_contribution": 1159.1,
           "contribution_pct": 1.9,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 2.54,
+          "avg_saturated": 0.798
         },
         "hcp_digital": {
           "label": "HCP Programmatic Digital",
@@ -240,7 +272,9 @@
           "estimated_roi": 0.168,
           "total_contribution": 1803.0,
           "contribution_pct": 3.0,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 11.39,
+          "avg_saturated": 0.7822
         },
         "speaker_programs": {
           "label": "Speaker Bureau Programs",
@@ -252,6 +286,8 @@
           "total_contribution": 3769.7,
           "contribution_pct": 6.3,
           "contribution_source": "model",
+          "adstock_x_max_k": 14.49,
+          "avg_saturated": 0.8541,
           "roi_in_season": 0.617,
           "roi_off_season": 0.634,
           "season_lift_pct": -2.8
@@ -265,7 +301,9 @@
           "estimated_roi": 0.198,
           "total_contribution": 2125.0,
           "contribution_pct": 3.6,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 26.24,
+          "avg_saturated": 0.7585
         },
         "dtc_tv": {
           "label": "DTC Television",
@@ -277,6 +315,8 @@
           "total_contribution": 13108.9,
           "contribution_pct": 22.0,
           "contribution_source": "model",
+          "adstock_x_max_k": 65.7,
+          "avg_saturated": 0.6567,
           "roi_in_season": 0.271,
           "roi_off_season": 0.283,
           "season_lift_pct": -4.3
@@ -290,7 +330,9 @@
           "estimated_roi": 0.15,
           "total_contribution": 1609.9,
           "contribution_pct": 2.7,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 17.18,
+          "avg_saturated": 0.7588
         },
         "dtc_ooh": {
           "label": "Out-of-Home Advertising",
@@ -302,6 +344,8 @@
           "total_contribution": 4594.3,
           "contribution_pct": 7.7,
           "contribution_source": "model",
+          "adstock_x_max_k": 9.17,
+          "avg_saturated": 0.81,
           "roi_in_season": 0.199,
           "roi_off_season": 0.214,
           "season_lift_pct": -6.8
@@ -316,6 +360,8 @@
           "total_contribution": 282.9,
           "contribution_pct": 0.5,
           "contribution_source": "model",
+          "adstock_x_max_k": 1.94,
+          "avg_saturated": 0.7777,
           "roi_in_season": 0.223,
           "roi_off_season": 0.224,
           "season_lift_pct": -0.7
@@ -329,7 +375,9 @@
           "estimated_roi": 0.21,
           "total_contribution": 2253.8,
           "contribution_pct": 3.8,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 7.38,
+          "avg_saturated": 0.7893
         }
       },
       "controls": {
@@ -357,6 +405,8 @@
           "total_contribution": 4803.9,
           "contribution_pct": 2.2,
           "contribution_source": "model",
+          "adstock_x_max_k": 223.06,
+          "avg_saturated": 0.6807,
           "roi_in_season": 0.444,
           "roi_off_season": 0.561,
           "season_lift_pct": -20.9
@@ -371,6 +421,8 @@
           "total_contribution": 14094.1,
           "contribution_pct": 6.4,
           "contribution_source": "model",
+          "adstock_x_max_k": 75.85,
+          "avg_saturated": 0.8764,
           "roi_in_season": 0.777,
           "roi_off_season": 0.712,
           "season_lift_pct": 9.1
@@ -384,7 +436,9 @@
           "estimated_roi": 0.132,
           "total_contribution": 6351.7,
           "contribution_pct": 2.9,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 23.47,
+          "avg_saturated": 0.842
         },
         "hcp_email": {
           "label": "HCP Email Campaigns",
@@ -396,6 +450,8 @@
           "total_contribution": 6729.5,
           "contribution_pct": 3.1,
           "contribution_source": "model",
+          "adstock_x_max_k": 7.23,
+          "avg_saturated": 0.7778,
           "roi_in_season": 0.251,
           "roi_off_season": 0.252,
           "season_lift_pct": -0.5
@@ -409,7 +465,9 @@
           "estimated_roi": 0.168,
           "total_contribution": 8084.0,
           "contribution_pct": 3.7,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 35.54,
+          "avg_saturated": 0.7191
         },
         "speaker_programs": {
           "label": "Speaker Bureau Programs",
@@ -421,6 +479,8 @@
           "total_contribution": 60057.8,
           "contribution_pct": 27.4,
           "contribution_source": "model",
+          "adstock_x_max_k": 37.0,
+          "avg_saturated": 0.8746,
           "roi_in_season": 0.612,
           "roi_off_season": 0.636,
           "season_lift_pct": -3.8
@@ -434,7 +494,9 @@
           "estimated_roi": 0.198,
           "total_contribution": 9527.6,
           "contribution_pct": 4.3,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 63.91,
+          "avg_saturated": 0.8192
         },
         "dtc_tv": {
           "label": "DTC Television",
@@ -446,6 +508,8 @@
           "total_contribution": 158.5,
           "contribution_pct": 0.1,
           "contribution_source": "model",
+          "adstock_x_max_k": 146.3,
+          "avg_saturated": 0.7761,
           "roi_in_season": 0.27,
           "roi_off_season": 0.283,
           "season_lift_pct": -4.6
@@ -460,6 +524,8 @@
           "total_contribution": 13827.4,
           "contribution_pct": 6.3,
           "contribution_source": "model",
+          "adstock_x_max_k": 54.19,
+          "avg_saturated": 0.6793,
           "roi_in_season": 0.331,
           "roi_off_season": 0.356,
           "season_lift_pct": -7.2
@@ -473,7 +539,9 @@
           "estimated_roi": 0.09,
           "total_contribution": 4330.7,
           "contribution_pct": 2.0,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 31.02,
+          "avg_saturated": 0.7115
         },
         "patient_email": {
           "label": "Patient CRM Email",
@@ -484,7 +552,9 @@
           "estimated_roi": 0.096,
           "total_contribution": 4619.5,
           "contribution_pct": 2.1,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 5.34,
+          "avg_saturated": 0.7544
         },
         "patient_advocacy": {
           "label": "Patient Advocacy Partnerships",
@@ -496,6 +566,8 @@
           "total_contribution": 86839.1,
           "contribution_pct": 39.6,
           "contribution_source": "model",
+          "adstock_x_max_k": 14.86,
+          "avg_saturated": 0.9127,
           "roi_in_season": 0.483,
           "roi_off_season": 0.492,
           "season_lift_pct": -1.9
@@ -525,7 +597,9 @@
           "estimated_roi": 0.228,
           "total_contribution": 10947.4,
           "contribution_pct": 6.6,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 143.12,
+          "avg_saturated": 0.732
         },
         "medical_congress": {
           "label": "Medical Congress & Symposia",
@@ -537,6 +611,8 @@
           "total_contribution": 22708.4,
           "contribution_pct": 13.6,
           "contribution_source": "model",
+          "adstock_x_max_k": 55.27,
+          "avg_saturated": 0.8793,
           "roi_in_season": 0.791,
           "roi_off_season": 0.707,
           "season_lift_pct": 12.0
@@ -551,6 +627,8 @@
           "total_contribution": 15998.9,
           "contribution_pct": 9.6,
           "contribution_source": "model",
+          "adstock_x_max_k": 17.13,
+          "avg_saturated": 0.8417,
           "roi_in_season": 0.311,
           "roi_off_season": 0.307,
           "season_lift_pct": 1.5
@@ -564,7 +642,9 @@
           "estimated_roi": 0.108,
           "total_contribution": 5185.6,
           "contribution_pct": 3.1,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 6.37,
+          "avg_saturated": 0.6894
         },
         "hcp_digital": {
           "label": "HCP Programmatic Digital",
@@ -576,6 +656,8 @@
           "total_contribution": 18755.7,
           "contribution_pct": 11.2,
           "contribution_source": "model",
+          "adstock_x_max_k": 23.76,
+          "avg_saturated": 0.7373,
           "roi_in_season": 0.377,
           "roi_off_season": 0.397,
           "season_lift_pct": -5.0
@@ -590,6 +672,8 @@
           "total_contribution": 7368.4,
           "contribution_pct": 4.4,
           "contribution_source": "model",
+          "adstock_x_max_k": 28.51,
+          "avg_saturated": 0.8515,
           "roi_in_season": 0.603,
           "roi_off_season": 0.639,
           "season_lift_pct": -5.7
@@ -604,6 +688,8 @@
           "total_contribution": 15128.5,
           "contribution_pct": 9.1,
           "contribution_source": "model",
+          "adstock_x_max_k": 50.81,
+          "avg_saturated": 0.7727,
           "roi_in_season": 0.421,
           "roi_off_season": 0.476,
           "season_lift_pct": -11.5
@@ -618,6 +704,8 @@
           "total_contribution": 621.0,
           "contribution_pct": 0.4,
           "contribution_source": "model",
+          "adstock_x_max_k": 96.85,
+          "avg_saturated": 0.8017,
           "roi_in_season": 0.277,
           "roi_off_season": 0.281,
           "season_lift_pct": -1.5
@@ -632,6 +720,8 @@
           "total_contribution": 14005.2,
           "contribution_pct": 8.4,
           "contribution_source": "model",
+          "adstock_x_max_k": 42.09,
+          "avg_saturated": 0.6655,
           "roi_in_season": 0.329,
           "roi_off_season": 0.357,
           "season_lift_pct": -8.0
@@ -645,7 +735,9 @@
           "estimated_roi": 0.09,
           "total_contribution": 4321.3,
           "contribution_pct": 2.6,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 20.9,
+          "avg_saturated": 0.7585
         },
         "patient_email": {
           "label": "Patient CRM Email",
@@ -656,7 +748,9 @@
           "estimated_roi": 0.096,
           "total_contribution": 4609.4,
           "contribution_pct": 2.8,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 4.25,
+          "avg_saturated": 0.7119
         },
         "patient_advocacy": {
           "label": "Patient Advocacy Partnerships",
@@ -668,6 +762,8 @@
           "total_contribution": 47441.7,
           "contribution_pct": 28.4,
           "contribution_source": "model",
+          "adstock_x_max_k": 12.95,
+          "avg_saturated": 0.8517,
           "roi_in_season": 0.461,
           "roi_off_season": 0.5,
           "season_lift_pct": -7.7
@@ -698,6 +794,8 @@
           "total_contribution": 26806.9,
           "contribution_pct": 19.5,
           "contribution_source": "model",
+          "adstock_x_max_k": 182.84,
+          "avg_saturated": 0.6711,
           "roi_in_season": 0.457,
           "roi_off_season": 0.557,
           "season_lift_pct": -18.0
@@ -712,6 +810,8 @@
           "total_contribution": 14667.8,
           "contribution_pct": 10.7,
           "contribution_source": "model",
+          "adstock_x_max_k": 70.26,
+          "avg_saturated": 0.8361,
           "roi_in_season": 0.771,
           "roi_off_season": 0.714,
           "season_lift_pct": 8.0
@@ -726,6 +826,8 @@
           "total_contribution": 16020.1,
           "contribution_pct": 11.6,
           "contribution_source": "model",
+          "adstock_x_max_k": 20.59,
+          "avg_saturated": 0.7822,
           "roi_in_season": 0.308,
           "roi_off_season": 0.308,
           "season_lift_pct": 0.1
@@ -739,7 +841,9 @@
           "estimated_roi": 0.108,
           "total_contribution": 4269.7,
           "contribution_pct": 3.1,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 6.3,
+          "avg_saturated": 0.7363
         },
         "hcp_digital": {
           "label": "HCP Programmatic Digital",
@@ -750,7 +854,9 @@
           "estimated_roi": 0.168,
           "total_contribution": 6641.8,
           "contribution_pct": 4.8,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 31.91,
+          "avg_saturated": 0.6842
         },
         "speaker_programs": {
           "label": "Speaker Bureau Programs",
@@ -762,6 +868,8 @@
           "total_contribution": 31031.2,
           "contribution_pct": 22.6,
           "contribution_source": "model",
+          "adstock_x_max_k": 36.97,
+          "avg_saturated": 0.7934,
           "roi_in_season": 0.625,
           "roi_off_season": 0.632,
           "season_lift_pct": -1.0
@@ -776,6 +884,8 @@
           "total_contribution": 14408.4,
           "contribution_pct": 10.5,
           "contribution_source": "model",
+          "adstock_x_max_k": 61.34,
+          "avg_saturated": 0.7624,
           "roi_in_season": 0.42,
           "roi_off_season": 0.476,
           "season_lift_pct": -11.7
@@ -790,6 +900,8 @@
           "total_contribution": 10766.6,
           "contribution_pct": 7.8,
           "contribution_source": "model",
+          "adstock_x_max_k": 113.64,
+          "avg_saturated": 0.784,
           "roi_in_season": 0.27,
           "roi_off_season": 0.283,
           "season_lift_pct": -4.6
@@ -803,7 +915,9 @@
           "estimated_roi": 0.15,
           "total_contribution": 5930.2,
           "contribution_pct": 4.3,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 38.89,
+          "avg_saturated": 0.7731
         },
         "dtc_ooh": {
           "label": "Out-of-Home Advertising",
@@ -815,6 +929,8 @@
           "total_contribution": 2980.9,
           "contribution_pct": 2.2,
           "contribution_source": "model",
+          "adstock_x_max_k": 22.28,
+          "avg_saturated": 0.7754,
           "roi_in_season": 0.206,
           "roi_off_season": 0.211,
           "season_lift_pct": -2.8
@@ -828,7 +944,9 @@
           "estimated_roi": 0.096,
           "total_contribution": 3795.3,
           "contribution_pct": 2.8,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 4.45,
+          "avg_saturated": 0.7604
         },
         "patient_advocacy": {
           "label": "Patient Advocacy Partnerships",
@@ -840,6 +958,8 @@
           "total_contribution": 261.6,
           "contribution_pct": 0.2,
           "contribution_source": "model",
+          "adstock_x_max_k": 13.89,
+          "avg_saturated": 0.8669,
           "roi_in_season": 0.474,
           "roi_off_season": 0.495,
           "season_lift_pct": -4.4
@@ -870,6 +990,8 @@
           "total_contribution": 32249.4,
           "contribution_pct": 32.0,
           "contribution_source": "model",
+          "adstock_x_max_k": 152.6,
+          "avg_saturated": 0.7027,
           "roi_in_season": 0.443,
           "roi_off_season": 0.562,
           "season_lift_pct": -21.2
@@ -884,6 +1006,8 @@
           "total_contribution": 14162.0,
           "contribution_pct": 14.0,
           "contribution_source": "model",
+          "adstock_x_max_k": 58.42,
+          "avg_saturated": 0.8643,
           "roi_in_season": 0.792,
           "roi_off_season": 0.707,
           "season_lift_pct": 12.1
@@ -898,6 +1022,8 @@
           "total_contribution": 2346.6,
           "contribution_pct": 2.3,
           "contribution_source": "model",
+          "adstock_x_max_k": 18.71,
+          "avg_saturated": 0.7999,
           "roi_in_season": 0.305,
           "roi_off_season": 0.309,
           "season_lift_pct": -1.3
@@ -911,7 +1037,9 @@
           "estimated_roi": 0.108,
           "total_contribution": 2251.4,
           "contribution_pct": 2.2,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 5.6,
+          "avg_saturated": 0.7276
         },
         "hcp_digital": {
           "label": "HCP Programmatic Digital",
@@ -923,6 +1051,8 @@
           "total_contribution": 20607.0,
           "contribution_pct": 20.4,
           "contribution_source": "model",
+          "adstock_x_max_k": 23.29,
+          "avg_saturated": 0.7631,
           "roi_in_season": 0.37,
           "roi_off_season": 0.399,
           "season_lift_pct": -7.3
@@ -936,7 +1066,9 @@
           "estimated_roi": 0.27,
           "total_contribution": 5628.4,
           "contribution_pct": 5.6,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 25.66,
+          "avg_saturated": 0.9039
         },
         "samples_coupons": {
           "label": "Samples & Co-pay Coupons",
@@ -947,7 +1079,9 @@
           "estimated_roi": 0.198,
           "total_contribution": 4127.5,
           "contribution_pct": 4.1,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 54.62,
+          "avg_saturated": 0.7571
         },
         "dtc_tv": {
           "label": "DTC Television",
@@ -959,6 +1093,8 @@
           "total_contribution": 2900.7,
           "contribution_pct": 2.9,
           "contribution_source": "model",
+          "adstock_x_max_k": 109.99,
+          "avg_saturated": 0.754,
           "roi_in_season": 0.274,
           "roi_off_season": 0.282,
           "season_lift_pct": -2.9
@@ -972,7 +1108,9 @@
           "estimated_roi": 0.15,
           "total_contribution": 3126.9,
           "contribution_pct": 3.1,
-          "contribution_source": "prior_estimate"
+          "contribution_source": "prior_estimate",
+          "adstock_x_max_k": 34.91,
+          "avg_saturated": 0.7386
         },
         "dtc_ooh": {
           "label": "Out-of-Home Advertising",
@@ -984,6 +1122,8 @@
           "total_contribution": 3948.1,
           "contribution_pct": 3.9,
           "contribution_source": "model",
+          "adstock_x_max_k": 21.02,
+          "avg_saturated": 0.7381,
           "roi_in_season": 0.205,
           "roi_off_season": 0.212,
           "season_lift_pct": -3.4
@@ -998,6 +1138,8 @@
           "total_contribution": 1330.5,
           "contribution_pct": 1.3,
           "contribution_source": "model",
+          "adstock_x_max_k": 4.44,
+          "avg_saturated": 0.7014,
           "roi_in_season": 0.225,
           "roi_off_season": 0.224,
           "season_lift_pct": 0.8
@@ -1012,6 +1154,8 @@
           "total_contribution": 8215.8,
           "contribution_pct": 8.1,
           "contribution_source": "model",
+          "adstock_x_max_k": 11.62,
+          "avg_saturated": 0.8829,
           "roi_in_season": 0.467,
           "roi_off_season": 0.498,
           "season_lift_pct": -6.3
