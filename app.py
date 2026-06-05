@@ -949,6 +949,119 @@ def _render_geo_hierarchical(geo_hier: dict, config: dict):
     _render_geo_bayesian(geo_hier, config)
 
 
+def _render_response_curves(geo_ols: dict, config: dict):
+    """
+    Per-channel saturation response curves by territory.
+
+    For a chosen channel, plots the Hill saturation curve for each territory
+    using steady-state adstock as the x-axis proxy, normalised by each
+    territory's historical adstock max.  A dot marks where each territory
+    currently operates on the curve.
+    """
+    territories = (geo_ols or {}).get("territories", {})
+    if not territories:
+        return
+
+    ch_config = config.get("channels", {})
+
+    # Build channel list in contribution-descending order (averaged across territories)
+    ch_avg_contrib = {}
+    for td in territories.values():
+        for ck, cv in td.get("channels", {}).items():
+            ch_avg_contrib[ck] = ch_avg_contrib.get(ck, 0) + cv.get("contribution_pct", 0)
+    ch_keys_sorted = sorted(ch_avg_contrib, key=lambda c: ch_avg_contrib[c], reverse=True)
+    ch_labels      = {ck: ch_config[ck]["label"] for ck in ch_keys_sorted if ck in ch_config}
+
+    selected_ch = st.selectbox(
+        "Channel",
+        options=list(ch_labels.keys()),
+        format_func=lambda k: ch_labels[k],
+        key="resp_curve_channel",
+    )
+
+    decay = ch_config[selected_ch]["adstock_decay"]
+    alpha = ch_config[selected_ch]["saturation"]
+
+    TERR_COLORS = [
+        "#2563EB", "#EA580C", "#16A34A", "#9333EA", "#DC2626", "#0891B2"
+    ]
+
+    fig = go.Figure()
+
+    for (tk, td), color in zip(sorted(territories.items()), TERR_COLORS):
+        cv = td.get("channels", {}).get(selected_ch)
+        if cv is None:
+            continue
+
+        adstock_x_max = cv.get("adstock_x_max_k")
+        avg_spend     = cv.get("avg_period_spend_k", 0)
+        avg_sat       = cv.get("avg_saturated")
+        terr_label    = td.get("label", tk)
+
+        if not adstock_x_max or adstock_x_max < 1e-6:
+            continue
+
+        # x: raw spend from 0 to 2× historical average (or 1.5× max adstock equiv)
+        x_max_plot = max(avg_spend * 2.5, 1.0)
+        x_raw = np.linspace(0, x_max_plot, 300)
+
+        # Steady-state adstock: x_ss = x / (1 - decay)
+        x_ss  = x_raw / (1.0 - decay + 1e-9)
+        y_sat = np.clip((x_ss / adstock_x_max) ** alpha, 0, 1)
+
+        # Current operating point — use stored avg_saturated if available, else compute
+        if avg_sat is not None:
+            y_dot = avg_sat
+        else:
+            x_ss_dot = avg_spend / (1.0 - decay + 1e-9)
+            y_dot    = float(np.clip((x_ss_dot / adstock_x_max) ** alpha, 0, 1))
+
+        fig.add_trace(go.Scatter(
+            x=x_raw, y=y_sat * 100,
+            mode="lines",
+            name=terr_label,
+            line=dict(color=color, width=2),
+            hovertemplate=(
+                f"<b>{terr_label}</b><br>"
+                "Spend: $%{x:.1f}K<br>"
+                "Saturation: %{y:.1f}%<extra></extra>"
+            ),
+        ))
+        fig.add_trace(go.Scatter(
+            x=[avg_spend], y=[y_dot * 100],
+            mode="markers",
+            name=f"{terr_label} (current)",
+            marker=dict(color=color, size=10, symbol="circle",
+                        line=dict(color="white", width=2)),
+            showlegend=False,
+            hovertemplate=(
+                f"<b>{terr_label} — current avg</b><br>"
+                f"Spend: ${avg_spend:.1f}K<br>"
+                f"Saturation: {y_dot*100:.1f}%<extra></extra>"
+            ),
+        ))
+
+    fig.add_hline(
+        y=80, line_dash="dot", line_color="#9CA3AF", line_width=1,
+        annotation_text="80% saturation", annotation_position="right",
+    )
+    fig.update_layout(
+        height=400,
+        margin=dict(t=10, b=10, l=0, r=80),
+        xaxis_title="Raw spend per period ($K)",
+        yaxis=dict(title="Saturation (%)", range=[0, 102]),
+        legend=dict(title="Territory", orientation="v", x=1.06),
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(
+        f"Curve = Hill saturation (α={alpha}, adstock decay={decay}). "
+        "Dots mark each territory's current average spend. "
+        "Territories with higher historical spend have a larger x_max "
+        "— the same dollar amount represents a smaller fraction of their capacity."
+    )
+
+
 def _render_season_interactions(geo_ols: dict, config: dict):
     """Heatmap: territory × channel → season_lift_pct (diverging, green=better in-season)."""
     territories = (geo_ols or {}).get("territories", {})
@@ -1199,6 +1312,11 @@ def tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_hier, geo_narrative, config
                         y=1.02, xanchor="left", x=0),
         )
         st.plotly_chart(fig, use_container_width=True)
+
+    # ── Response curves ────────────────────────────────────────────────────────
+    if geo_ols_terrs:
+        st.subheader("Adstock + saturation response curves by territory")
+        _render_response_curves(geo_ols, config)
 
     # ── Seasonal ROI split heatmap ─────────────────────────────────────────────
     any_season = any(

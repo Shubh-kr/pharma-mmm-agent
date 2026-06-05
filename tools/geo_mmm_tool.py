@@ -209,6 +209,9 @@ def _fit_territory(terr_df: pd.DataFrame, channels: list, config: dict, freq: st
         estimated_roi_raw = float(beta_unscaled * avg_sat / (avg_spend + 1e-9) * 100)
         blended_roi = round(0.6 * prior_roi + 0.4 * min(estimated_roi_raw, prior_roi * 2), 3)
 
+        adstocked = terr_df[f"{ch}_adstocked"].values
+        adstock_x_max = float(adstocked.max())
+
         ch_result = {
             "label":               config["channels"][ch]["label"],
             "channel_type":        config["channels"][ch]["channel_type"],
@@ -219,6 +222,8 @@ def _fit_territory(terr_df: pd.DataFrame, channels: list, config: dict, freq: st
             "total_contribution":  round(float(contrib), 1),
             "contribution_pct":    round(contrib_pct, 1),
             "contribution_source": contrib_source.get(ch, "model"),
+            "adstock_x_max_k":     round(adstock_x_max, 2),
+            "avg_saturated":       round(float(avg_sat), 4),
         }
 
         # Only add season split for model-identified channels (prior-estimated ones
