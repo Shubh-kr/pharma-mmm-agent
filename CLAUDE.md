@@ -186,6 +186,17 @@ Math: `Δ Scripts ≈ roi_efficiency[t] × Δ Budget[t]` summed across territori
 - New `🎯 Scenario` tab: mode radio (Target → Budget / Budget → Scripts); NRx or budget slider; required budget / achieved NRx metrics; channel allocation table + grouped bar chart; efficiency frontier with current marked as orange diamond (sits above curve — confirms suboptimal current mix)
 - Tab order: Overview | Ridge | Bayesian | Attribution | Budget | Geo | **Scenario** | Incrementality | Insights
 
+**PR #11 — PostgreSQL integration** ✅ merged
+- `tools/db.py`: psycopg2-based interface to `portfolio_db` (local Docker, localhost:5432, free); schema `mmm` with 5 tables — `mmm.results` (JSONB per result_type), `mmm.raw_data`, `mmm.geo_data`, `mmm.narratives`, `mmm.run_log`
+- All upserts use `ON CONFLICT DO UPDATE` (idempotent); NaN/Inf sanitised before serialisation; all functions return `None` on connection failure so the app falls back to JSON/CSV files silently
+- `scripts/migrate_to_db.py`: one-time migration script — loads all existing JSON results, CSV datasets, and narrative reports into DB (21 objects, `python scripts/migrate_to_db.py`)
+- `app.py`: all `load_*` functions try DB first, fall back to file; `run_pipeline()` and `run_geo_pipeline()` sync each result to DB after the tool writes JSON; `main()` calls `init_schema()` on startup
+- `requirements.txt`: adds `psycopg2-binary>=2.9.0`
+- DB connection string: `postgresql://shubham:localdevpass@localhost:5432/portfolio_db`
+
+### Key design note — `estimated_roi` units (discovered during PR #10)
+The `estimated_roi` field stored in OLS results JSON is a **blended prior value** (`0.6 × prior_roi + 0.4 × min(model_roi, 2×prior_roi)`), NOT scripts/$K. Actual average ROI = `total_contribution / total_spend_k`. The scenario planner uses `total_contribution` directly for calibration; the forward optimizer uses `estimated_roi` only as a relative ordering signal (which is fine for SLSQP maximisation).
+
 ## Next steps — Phase 2 remaining candidates
 
 1. **Budget scenario comparison** — save and compare named scenarios (current / optimizer / custom) side-by-side
