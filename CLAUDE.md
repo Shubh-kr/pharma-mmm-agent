@@ -170,9 +170,17 @@ Math: `Δ Scripts ≈ roi_efficiency[t] × Δ Budget[t]` summed across territori
 - `README.md` fully rewritten: all Phase 1 features, 7-tab dashboard, Phase 1 ✅ / Phase 2 roadmap
 - `PROJECT_STATUS.md` fully rewritten: architecture, file map, feature inventory tables, Phase 2 plans, key design decisions
 
-## Next steps — Phase 2 candidates
+## Phase 2 — in progress (PRs #9+)
 
-1. **Incrementality testing planner** — rank territory × channel candidates for geo holdout / lift tests using Bayesian HDI width + Ridge vs Bayesian disagreement
-2. **Scenario planner** — inverse optimizer: given a NRx target, solve for required budget and channel mix
-3. **Budget scenario comparison** — save and compare named scenarios (current / optimizer / custom) side-by-side
-4. **Real data ingestion** — CSV upload flow in the dashboard sidebar with schema auto-detection
+**PR #9 — Incrementality testing planner** ✅ merged
+- `tools/incrementality_tool.py`: `compute_incrementality_scores()` scores all territory × channel pairs on 4 signals — Bayesian HDI uncertainty, Ridge vs Bayesian model disagreement, saturation headroom, spend materiality — min-max normalised then combined via configurable weights
+- `_holdout_design()` generates per-candidate test recommendations: approach, duration, holdout depth, power note
+- New `🧪 Incrementality` tab (tab 7 of 8): signal weight sliders, ranked table with colour-coded scores, bubble scatter (HDI uncertainty vs model disagreement), stacked score-breakdown bar chart for top 15, expandable holdout design cards for top N
+- Gracefully degrades when Bayesian geo results are absent
+- Tab order: Overview | Ridge | Bayesian | Attribution | Budget | Geo | **Incrementality** | Insights
+
+## Next steps — Phase 2 remaining candidates
+
+1. **Scenario planner** — inverse optimizer: given a NRx target, solve for required budget and channel mix
+2. **Budget scenario comparison** — save and compare named scenarios (current / optimizer / custom) side-by-side
+3. **Real data ingestion** — CSV upload flow in the dashboard sidebar with schema auto-detection
