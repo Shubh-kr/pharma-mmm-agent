@@ -18,6 +18,10 @@ import yaml
 sys.path.insert(0, str(Path(__file__).parent))
 
 from tools.incrementality_tool import compute_incrementality_scores, _holdout_design
+from tools.scenario_tool import (
+    solve_target_to_budget, solve_budget_to_scripts,
+    compute_efficiency_frontier, _build_channel_params, _total_scripts,
+)
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -1702,6 +1706,274 @@ def tab_attribution(ols, geo_ols, config, freq):
             st.info("Re-run the geo pipeline to generate territory time-series data.")
 
 
+def tab_scenario(ols: dict, config: dict, freq: str = "weekly"):
+    st.header("🎯 Scenario Planner")
+    st.caption(
+        "Two complementary views: **Target → Budget** finds the minimum spend required to hit "
+        "a NRx goal; **Budget → Scripts** shows the maximum NRx achievable from a given budget. "
+        "Both include an efficiency frontier and channel mix breakdown."
+    )
+
+    if not ols:
+        st.info("Run the national pipeline first (OLS results required).")
+        return
+
+    import numpy as np
+
+    n_periods = 104 if freq == "weekly" else 36
+    ch_params = _build_channel_params(ols, config, n_periods)
+    baseline_pp = ols.get("baseline_scripts", 0.0) / n_periods
+    x_curr = np.array([p["current_spend_k"] for p in ch_params])
+    current_scripts = _total_scripts(x_curr, ch_params, baseline_pp)
+    current_budget  = float(x_curr.sum())
+
+    period_label = "week" if freq == "weekly" else "month"
+
+    # ── Mode selector ──────────────────────────────────────────────────────────
+    mode = st.radio(
+        "Planning mode",
+        ["🎯 Target → find minimum budget",
+         "💰 Budget → find maximum NRx"],
+        horizontal=True,
+        key="scenario_mode",
+    )
+
+    st.divider()
+
+    if mode.startswith("🎯"):
+        # ── TARGET → BUDGET ────────────────────────────────────────────────────
+        st.subheader("🎯 Target NRx → Minimum budget")
+
+        col_ctrl, col_metric = st.columns([3, 2])
+        with col_ctrl:
+            lift_pct = st.slider(
+                "NRx target lift vs current",
+                min_value=-20, max_value=50, value=10, step=1,
+                format="%d%%", key="scen_lift_pct",
+            )
+            target_scripts = current_scripts * (1 + lift_pct / 100)
+            st.caption(
+                f"Target: **{target_scripts:,.0f} scripts/{period_label}** "
+                f"(current: {current_scripts:,.0f})"
+            )
+            relax = st.checkbox("Relax spend corridors (allow larger channel shifts)",
+                                key="scen_relax")
+
+        result = solve_target_to_budget(target_scripts, ols, config, freq, relax_corridors=relax)
+
+        with col_metric:
+            if result["feasible"]:
+                delta_k   = result["budget_delta_k"]
+                delta_pct = result["budget_delta_pct"]
+                req_k     = result["required_budget_k"]
+                st.metric("Required budget / period",
+                          f"${req_k:,.0f}K",
+                          delta=f"{delta_pct:+.1f}% vs current",
+                          delta_color="inverse")
+                st.metric("Budget change",
+                          f"${delta_k:+,.0f}K / {period_label}",
+                          delta=None)
+                st.metric("Achieved NRx",
+                          f"{result['achieved_scripts']:,.0f} scripts/{period_label}")
+            else:
+                st.error(f"⚠️ Infeasible: {result['infeasibility_reason']}")
+
+        if result["feasible"] and result["channels"]:
+            st.divider()
+
+            # Channel breakdown table + bar chart side by side
+            tc1, tc2 = st.columns([2, 3])
+
+            with tc1:
+                st.subheader("Channel allocation")
+                tbl = []
+                for ch in result["channels"]:
+                    action = ("↑ Increase" if ch["delta_pct"] > 5
+                              else "↓ Reduce" if ch["delta_pct"] < -5
+                              else "→ Hold")
+                    tbl.append({
+                        "Channel":      ch["channel_label"],
+                        "Type":         ch["channel_type"].upper(),
+                        "Current $K":   f"{ch['current_spend_k']:.1f}",
+                        "Scenario $K":  f"{ch['scenario_spend_k']:.1f}",
+                        "Change":       f"{ch['delta_pct']:+.1f}%",
+                        "Action":       action,
+                    })
+                st.dataframe(pd.DataFrame(tbl), use_container_width=True, hide_index=True)
+
+            with tc2:
+                st.subheader("Current vs scenario spend")
+                chs = result["channels"]
+                labels = [c["channel_label"] for c in chs]
+                curr_vals = [c["current_spend_k"]  for c in chs]
+                scen_vals = [c["scenario_spend_k"] for c in chs]
+                fig_cmp = go.Figure()
+                fig_cmp.add_trace(go.Bar(
+                    name="Current", x=labels, y=curr_vals,
+                    marker_color="#94A3B8",
+                    hovertemplate="%{x}<br>Current: $%{y:.1f}K<extra></extra>",
+                ))
+                fig_cmp.add_trace(go.Bar(
+                    name="Scenario", x=labels, y=scen_vals,
+                    marker_color="#2563EB",
+                    hovertemplate="%{x}<br>Scenario: $%{y:.1f}K<extra></extra>",
+                ))
+                fig_cmp.update_layout(
+                    barmode="group", height=370,
+                    yaxis_title="Spend $K / period",
+                    xaxis_tickangle=-35,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.01),
+                    margin=dict(t=20, b=80),
+                )
+                st.plotly_chart(fig_cmp, use_container_width=True)
+
+    else:
+        # ── BUDGET → SCRIPTS ──────────────────────────────────────────────────
+        st.subheader("💰 Budget → Maximum NRx")
+
+        col_ctrl2, col_metric2 = st.columns([3, 2])
+        with col_ctrl2:
+            budget_delta_pct = st.slider(
+                "Total budget vs current",
+                min_value=-30, max_value=50, value=0, step=5,
+                format="%d%%", key="scen_budget_pct",
+            )
+            scenario_budget = current_budget * (1 + budget_delta_pct / 100)
+            st.caption(
+                f"Budget: **${scenario_budget:,.0f}K / {period_label}** "
+                f"(current: ${current_budget:,.0f}K)"
+            )
+
+        result2 = solve_budget_to_scripts(scenario_budget, ols, config, freq)
+
+        with col_metric2:
+            achieved = result2["achieved_scripts"]
+            scripts_delta_pct = (achieved - current_scripts) / max(current_scripts, 1) * 100
+            st.metric("Projected NRx / period",
+                      f"{achieved:,.0f}",
+                      delta=f"{scripts_delta_pct:+.1f}% vs current")
+            st.metric("Budget / period", f"${scenario_budget:,.0f}K",
+                      delta=f"{budget_delta_pct:+.0f}% vs current",
+                      delta_color="off")
+
+        if result2["channels"]:
+            st.divider()
+            tc1b, tc2b = st.columns([2, 3])
+
+            with tc1b:
+                st.subheader("Optimal channel mix")
+                tbl2 = []
+                for ch in result2["channels"]:
+                    action = ("↑ Increase" if ch["delta_pct"] > 5
+                              else "↓ Reduce" if ch["delta_pct"] < -5
+                              else "→ Hold")
+                    tbl2.append({
+                        "Channel":     ch["channel_label"],
+                        "Type":        ch["channel_type"].upper(),
+                        "Current $K":  f"{ch['current_spend_k']:.1f}",
+                        "Optimal $K":  f"{ch['scenario_spend_k']:.1f}",
+                        "Change":      f"{ch['delta_pct']:+.1f}%",
+                        "Action":      action,
+                    })
+                st.dataframe(pd.DataFrame(tbl2), use_container_width=True, hide_index=True)
+
+            with tc2b:
+                st.subheader("Current vs optimised spend")
+                chs2 = result2["channels"]
+                labels2   = [c["channel_label"] for c in chs2]
+                curr_vals2 = [c["current_spend_k"]  for c in chs2]
+                scen_vals2 = [c["scenario_spend_k"] for c in chs2]
+                fig_cmp2 = go.Figure()
+                fig_cmp2.add_trace(go.Bar(
+                    name="Current", x=labels2, y=curr_vals2,
+                    marker_color="#94A3B8",
+                    hovertemplate="%{x}<br>Current: $%{y:.1f}K<extra></extra>",
+                ))
+                fig_cmp2.add_trace(go.Bar(
+                    name="Optimised", x=labels2, y=scen_vals2,
+                    marker_color="#16A34A",
+                    hovertemplate="%{x}<br>Optimised: $%{y:.1f}K<extra></extra>",
+                ))
+                fig_cmp2.update_layout(
+                    barmode="group", height=370,
+                    yaxis_title="Spend $K / period",
+                    xaxis_tickangle=-35,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.01),
+                    margin=dict(t=20, b=80),
+                )
+                st.plotly_chart(fig_cmp2, use_container_width=True)
+
+    # ── Efficiency frontier (shared by both modes) ─────────────────────────────
+    st.divider()
+    st.subheader("📈 Efficiency frontier — NRx vs required budget")
+    st.caption(
+        "How much does each extra NRx point cost? The curve flattens as saturation "
+        "kicks in — the steeper sections show where incremental spend is most efficient."
+    )
+
+    with st.spinner("Computing frontier…"):
+        frontier = compute_efficiency_frontier(ols, config, freq, n_points=25)
+
+    feasible_pts = [p for p in frontier if p["feasible"] and p["required_budget_k"] is not None]
+    infeasible_pts = [p for p in frontier if not p["feasible"]]
+
+    if feasible_pts:
+        f_lifts   = [p["lift_pct"]          for p in feasible_pts]
+        f_budgets = [p["required_budget_k"]  for p in feasible_pts]
+        f_targets = [p["target_scripts"]     for p in feasible_pts]
+
+        fig_front = go.Figure()
+        fig_front.add_trace(go.Scatter(
+            x=f_lifts,
+            y=f_budgets,
+            mode="lines+markers",
+            name="Min budget to hit target",
+            line=dict(color="#2563EB", width=2.5),
+            marker=dict(size=6),
+            customdata=list(zip(f_targets, [p["budget_delta_pct"] for p in feasible_pts])),
+            hovertemplate=(
+                "NRx lift: %{x:+.0f}%<br>"
+                "Target: %{customdata[0]:,.0f} scripts<br>"
+                "Budget: $%{y:,.0f}K<br>"
+                "vs current: %{customdata[1]:+.1f}%<extra></extra>"
+            ),
+        ))
+        # Mark current point
+        fig_front.add_trace(go.Scatter(
+            x=[0], y=[current_budget],
+            mode="markers",
+            name="Current",
+            marker=dict(color="#EA580C", size=12, symbol="diamond"),
+            hovertemplate="Current: $%{y:,.0f}K<extra></extra>",
+        ))
+        # Mark selected target
+        if mode.startswith("🎯"):
+            selected_lift = lift_pct
+        else:
+            selected_lift = (result2["achieved_scripts"] / current_scripts - 1) * 100
+
+        fig_front.add_vline(
+            x=selected_lift, line_dash="dot", line_color="gray",
+            annotation_text="Selected", annotation_position="top right",
+        )
+        fig_front.update_layout(
+            xaxis_title="NRx lift vs current (%)",
+            yaxis_title="Required budget $K / period",
+            height=380,
+            legend=dict(orientation="h", yanchor="bottom", y=1.01),
+            margin=dict(t=30, b=40),
+        )
+        st.plotly_chart(fig_front, use_container_width=True)
+
+        if infeasible_pts:
+            max_lift = max(p["lift_pct"] for p in feasible_pts)
+            st.caption(
+                f"Corridor constraints prevent targets above +{max_lift:.0f}% lift "
+                f"({len(infeasible_pts)} points outside feasible range). "
+                "Enable 'relax corridors' to extend the frontier."
+            )
+
+
 def tab_incrementality(geo_ols: dict, geo_bayes: dict, config: dict, freq: str = "weekly"):
     st.header("🧪 Incrementality Testing Planner")
     st.caption(
@@ -1994,7 +2266,7 @@ def main():
 
     tab_names = ["📈 Overview", "📊 Ridge MMM", "🧮 Bayesian MMM",
                  "🔍 Attribution", "💰 Budget", "🗺️ Geo",
-                 "🧪 Incrementality", "📝 Insights"]
+                 "🎯 Scenario", "🧪 Incrementality", "📝 Insights"]
     tabs = st.tabs(tab_names)
 
     with tabs[0]:
@@ -2019,9 +2291,12 @@ def main():
         tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_hier, geo_narrative, config)
 
     with tabs[6]:
-        tab_incrementality(geo_ols, geo_bayes, config, freq)
+        tab_scenario(ols, config, freq)
 
     with tabs[7]:
+        tab_incrementality(geo_ols, geo_bayes, config, freq)
+
+    with tabs[8]:
         tab_insights(freq)
 
 
