@@ -4,7 +4,9 @@ Run:  streamlit run app.py
 """
 
 import json
+import math
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -108,13 +110,21 @@ def load_geo_narrative(freq):
     with open(path) as f:
         return f.read()
 
+_SUFFIX_TO_RESULT_TYPE = {
+    "ols_results":              "ols",
+    "bayesian_results":         "bayesian",
+    "geo_ols_results":          "geo_ols",
+    "geo_bayesian_results":     "geo_bayesian",
+    "geo_hierarchical_results": "geo_hierarchical",
+}
+
+@st.cache_data
 def load_json(path):
-    # Extract freq and result_type from path for DB lookup
-    import re
     m = re.search(r"mmm_(weekly|monthly)_(.+)\.json$", path)
     if m:
         freq, suffix = m.group(1), m.group(2)
-        data = load_result(freq, suffix)
+        result_type = _SUFFIX_TO_RESULT_TYPE.get(suffix, suffix)
+        data = load_result(freq, result_type)
         if data is not None:
             return data
     return _file_json(path)
@@ -190,7 +200,7 @@ def sidebar(config):
 def _sync_result(freq, result_type, json_path):
     """Read a just-written JSON file and upsert to DB."""
     data = _file_json(json_path)
-    if data:
+    if data is not None:
         upsert_result(freq, result_type, data)
         log_run(freq, result_type, "synced")
 
@@ -2282,8 +2292,13 @@ def tab_insights(freq):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+@st.cache_resource
+def _ensure_schema():
+    """Run once per Streamlit server process — not on every rerun."""
+    init_schema()
+
 def main():
-    init_schema()  # no-op if schema already exists; silently skips if DB unavailable
+    _ensure_schema()
     config = load_config()
     freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes, run_geo_hier, run_geo_insights = sidebar(config)
 

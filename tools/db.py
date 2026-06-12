@@ -19,6 +19,7 @@ gracefully falls back to JSON/CSV files.
 from __future__ import annotations
 
 import json
+import math
 import os
 from contextlib import contextmanager
 from typing import Optional
@@ -148,12 +149,19 @@ def load_result(freq: str, result_type: str) -> Optional[dict]:
 # ── Raw data ──────────────────────────────────────────────────────────────────
 
 def _clean_for_json(d: dict) -> dict:
-    """Replace NaN/inf with None so json.dumps produces valid JSON."""
-    import math
-    return {
-        k: (None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
-        for k, v in d.items()
-    }
+    """Replace NaN/inf with None so json.dumps produces valid JSON.
+
+    Uses try/except so numpy.float64 values are handled correctly regardless
+    of NumPy version (numpy>=2.0 removed float64's float subclass inheritance).
+    """
+    out = {}
+    for k, v in d.items():
+        try:
+            bad = math.isnan(v) or math.isinf(v)
+        except (TypeError, ValueError):
+            bad = False
+        out[k] = None if bad else v
+    return out
 
 def upsert_raw_data(freq: str, df: pd.DataFrame) -> bool:
     """Upsert all rows of a raw/transformed DataFrame. Returns True on success."""
