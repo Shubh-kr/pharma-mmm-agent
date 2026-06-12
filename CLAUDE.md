@@ -194,6 +194,13 @@ Math: `Δ Scripts ≈ roi_efficiency[t] × Δ Budget[t]` summed across territori
 - `requirements.txt`: adds `psycopg2-binary>=2.9.0`
 - DB connection string: `postgresql://shubham:localdevpass@localhost:5432/portfolio_db`
 
+**PR #12 — DB layer bug fixes (code review of PR #11)** ✅ merged
+- `load_json()`: added `_SUFFIX_TO_RESULT_TYPE` dict — filename suffixes like `ols_results` now correctly map to DB `result_type` keys like `ols`; without this the DB-first path was dead code for 3 of 5 result types
+- `load_json()`: added `@st.cache_data` so it doesn't open a DB connection on every widget interaction (was the only load function without it)
+- `_sync_result()`: `if data:` → `if data is not None:` so an empty-dict result from a failed tool run doesn't silently skip the upsert
+- `_ensure_schema()`: wrapped `init_schema()` in `@st.cache_resource` — DDL now runs once per server process, not on every Streamlit rerun
+- `_clean_for_json()`: replaced `isinstance(v, float)` guard with `try/except` around `math.isnan/isinf` — handles `numpy.float64` correctly for NumPy ≥ 2.0 where `float64` is no longer a `float` subclass; `import math` moved to module level
+
 ### Key design note — `estimated_roi` units (discovered during PR #10)
 The `estimated_roi` field stored in OLS results JSON is a **blended prior value** (`0.6 × prior_roi + 0.4 × min(model_roi, 2×prior_roi)`), NOT scripts/$K. Actual average ROI = `total_contribution / total_spend_k`. The scenario planner uses `total_contribution` directly for calibration; the forward optimizer uses `estimated_roi` only as a relative ordering signal (which is fine for SLSQP maximisation).
 
