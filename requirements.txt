@@ -32,3 +32,6 @@ ipykernel>=6.0.0
 
 # Dashboard
 streamlit>=1.28.0
+
+# Database
+psycopg2-binary>=2.9.0

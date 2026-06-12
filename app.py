@@ -17,6 +17,12 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from tools.db import (
+    init_schema, upsert_result, load_result,
+    upsert_raw_data, load_raw_data,
+    upsert_geo_data, load_geo_data,
+    upsert_narrative, load_narrative, log_run,
+)
 from tools.incrementality_tool import compute_incrementality_scores, _holdout_design
 from tools.scenario_tool import (
     solve_target_to_budget, solve_budget_to_scripts,
@@ -52,8 +58,17 @@ def load_config():
     with open("config/config.yaml") as f:
         return yaml.safe_load(f)
 
+def _file_json(path):
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return None
+
 @st.cache_data
 def load_dataset(freq):
+    df = load_raw_data(freq)
+    if df is not None:
+        return df
     path = f"data/raw/mmm_{freq}.csv"
     if not os.path.exists(path):
         return None
@@ -61,6 +76,9 @@ def load_dataset(freq):
 
 @st.cache_data
 def load_geo_dataset(freq):
+    df = load_geo_data(freq)
+    if df is not None:
+        return df
     path = f"data/raw/mmm_{freq}_geo.csv"
     if not os.path.exists(path):
         return None
@@ -68,21 +86,22 @@ def load_geo_dataset(freq):
 
 @st.cache_data
 def load_geo_bayesian(freq):
-    path = f"data/raw/mmm_{freq}_geo_bayesian_results.json"
-    if not os.path.exists(path):
-        return None
-    with open(path) as f:
-        return json.load(f)
+    data = load_result(freq, "geo_bayesian")
+    if data is not None:
+        return data
+    return _file_json(f"data/raw/mmm_{freq}_geo_bayesian_results.json")
 
 @st.cache_data
 def load_geo_hierarchical(freq):
-    path = f"data/raw/mmm_{freq}_geo_hierarchical_results.json"
-    if not os.path.exists(path):
-        return None
-    with open(path) as f:
-        return json.load(f)
+    data = load_result(freq, "geo_hierarchical")
+    if data is not None:
+        return data
+    return _file_json(f"data/raw/mmm_{freq}_geo_hierarchical_results.json")
 
 def load_geo_narrative(freq):
+    content = load_narrative(freq, "geo")
+    if content is not None:
+        return content
     path = f"reports/mmm_{freq}_geo_insights.md"
     if not os.path.exists(path):
         return None
@@ -90,10 +109,15 @@ def load_geo_narrative(freq):
         return f.read()
 
 def load_json(path):
-    if os.path.exists(path):
-        with open(path) as f:
-            return json.load(f)
-    return None
+    # Extract freq and result_type from path for DB lookup
+    import re
+    m = re.search(r"mmm_(weekly|monthly)_(.+)\.json$", path)
+    if m:
+        freq, suffix = m.group(1), m.group(2)
+        data = load_result(freq, suffix)
+        if data is not None:
+            return data
+    return _file_json(path)
 
 def ch_color(ch_name, source=None):
     if source == "prior_estimate":
@@ -163,44 +187,63 @@ def sidebar(config):
     return freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes, run_geo_hier, run_geo_insights
 
 
+def _sync_result(freq, result_type, json_path):
+    """Read a just-written JSON file and upsert to DB."""
+    data = _file_json(json_path)
+    if data:
+        upsert_result(freq, result_type, data)
+        log_run(freq, result_type, "synced")
+
+def _sync_narrative(freq, report_type, md_path):
+    if os.path.exists(md_path):
+        with open(md_path) as f:
+            upsert_narrative(freq, report_type, f.read())
+        log_run(freq, f"narrative_{report_type}", "synced")
+
 def run_pipeline(freq, run_bayesian, run_insights):
     with st.status("Running Pharma MMM pipeline…", expanded=True) as status:
         from tools.transforms import apply_all_transforms_tool
         from tools.ols_mmm_tool import run_ols_mmm_tool
         from tools.optimizer_tool import run_budget_optimizer_tool
 
-        data_path       = f"data/raw/mmm_{freq}.csv"
-        transformed     = data_path.replace(".csv", "_transformed.csv")
-        ols_results     = data_path.replace(".csv", "_ols_results.json")
-        prefix          = f"data/raw/mmm_{freq}"
+        data_path   = f"data/raw/mmm_{freq}.csv"
+        transformed = data_path.replace(".csv", "_transformed.csv")
+        ols_path    = data_path.replace(".csv", "_ols_results.json")
+        opt_path    = data_path.replace(".csv", "_budget_optimized.json")
 
         st.write("🔄 Applying adstock + saturation transforms…")
         apply_all_transforms_tool.invoke(
             {"data_path": data_path, "config_path": "config/config.yaml"}
         )
+        df_raw = pd.read_csv(data_path, parse_dates=["date"])
+        upsert_raw_data(freq, df_raw)
 
         st.write("📊 Running Ridge MMM…")
         run_ols_mmm_tool.invoke(
             {"data_path": transformed, "config_path": "config/config.yaml", "freq": freq}
         )
+        _sync_result(freq, "ols", ols_path)
 
         st.write("💰 Running budget optimiser…")
-        with open(ols_results) as f:
+        with open(ols_path) as f:
             ols = json.load(f)
         budget = round(ols.get("avg_period_spend_k", 900.0), 1)
         run_budget_optimizer_tool.invoke({
-            "results_path": ols_results,
+            "results_path": ols_path,
             "config_path": "config/config.yaml",
             "total_budget_k": budget,
             "freq": freq,
         })
+        _sync_result(freq, "budget_optimized", opt_path)
 
         if run_bayesian:
             from tools.bayesian_mmm_tool import run_bayesian_mmm_tool
+            bayes_path = data_path.replace(".csv", "_bayesian_results.json")
             st.write("🧮 Running Bayesian MMM (this takes ~1 min)…")
             run_bayesian_mmm_tool.invoke(
                 {"data_path": transformed, "config_path": "config/config.yaml", "freq": freq}
             )
+            _sync_result(freq, "bayesian", bayes_path)
 
         if run_insights:
             from agents.insight_agent import run_insight_agent
@@ -208,6 +251,7 @@ def run_pipeline(freq, run_bayesian, run_insights):
             run_insight_agent(
                 data_dir="data/raw", config_path="config/config.yaml", freq=freq
             )
+            _sync_narrative(freq, "national", f"reports/mmm_{freq}_insights.md")
 
         status.update(label="Pipeline complete!", state="complete")
     st.cache_data.clear()
@@ -577,8 +621,9 @@ def run_geo_pipeline(freq, run_bayesian=False, run_hierarchical=False, run_insig
         from tools.geo_mmm_tool import run_geo_ols_mmm_tool
         from tools.geo_optimizer_tool import run_geo_budget_optimizer_tool
 
-        geo_path = f"data/raw/mmm_{freq}_geo.csv"
-        geo_ols  = f"data/raw/mmm_{freq}_geo_ols_results.json"
+        geo_path     = f"data/raw/mmm_{freq}_geo.csv"
+        geo_ols_path = f"data/raw/mmm_{freq}_geo_ols_results.json"
+        geo_opt_path = f"data/raw/mmm_{freq}_geo_budget_optimized.json"
 
         if not os.path.exists(geo_path):
             st.error(
@@ -592,35 +637,42 @@ def run_geo_pipeline(freq, run_bayesian=False, run_hierarchical=False, run_insig
         run_geo_ols_mmm_tool.invoke(
             {"data_path": geo_path, "config_path": "config/config.yaml", "freq": freq}
         )
+        _sync_result(freq, "geo_ols", geo_ols_path)
+        geo_df = pd.read_csv(geo_path, parse_dates=["date"])
+        upsert_geo_data(freq, geo_df)
 
         st.write("💰 Running Geo budget optimiser…")
-        with open(geo_ols) as f:
-            import json as _json
-            geo_results = _json.load(f)
+        with open(geo_ols_path) as f:
+            geo_results = json.load(f)
         total_budget = sum(
             t.get("avg_period_spend_k", 0)
             for t in geo_results.get("territories", {}).values()
         )
         run_geo_budget_optimizer_tool.invoke({
-            "results_path":             geo_ols,
+            "results_path":             geo_ols_path,
             "config_path":              "config/config.yaml",
             "total_national_budget_k":  round(total_budget, 1),
             "freq":                     freq,
         })
+        _sync_result(freq, "geo_budget_optimized", geo_opt_path)
 
         if run_bayesian:
             from tools.geo_bayesian_mmm_tool import run_geo_bayesian_mmm_tool
+            geo_bayes_path = f"data/raw/mmm_{freq}_geo_bayesian_results.json"
             st.write("🧮 Running Geo Bayesian MMM (per territory, ~20 min)…")
             run_geo_bayesian_mmm_tool.invoke(
                 {"data_path": geo_path, "config_path": "config/config.yaml", "freq": freq}
             )
+            _sync_result(freq, "geo_bayesian", geo_bayes_path)
 
         if run_hierarchical:
             from tools.geo_hierarchical_mmm_tool import run_geo_hierarchical_mmm_tool
+            geo_hier_path = f"data/raw/mmm_{freq}_geo_hierarchical_results.json"
             st.write("🔗 Running Geo Hierarchical Bayesian MMM (~5 min)…")
             run_geo_hierarchical_mmm_tool.invoke(
                 {"data_path": geo_path, "config_path": "config/config.yaml", "freq": freq}
             )
+            _sync_result(freq, "geo_hierarchical", geo_hier_path)
 
         if run_insights:
             from agents.insight_agent import run_geo_insight_agent
@@ -628,6 +680,7 @@ def run_geo_pipeline(freq, run_bayesian=False, run_hierarchical=False, run_insig
             run_geo_insight_agent(
                 data_dir="data/raw", config_path="config/config.yaml", freq=freq
             )
+            _sync_narrative(freq, "geo", f"reports/mmm_{freq}_geo_insights.md")
 
         status.update(label="Geo pipeline complete!", state="complete")
     st.cache_data.clear()
@@ -2230,6 +2283,7 @@ def tab_insights(freq):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+    init_schema()  # no-op if schema already exists; silently skips if DB unavailable
     config = load_config()
     freq, run_bayesian, run_insights, run_btn, run_geo_btn, run_geo_bayes, run_geo_hier, run_geo_insights = sidebar(config)
 
