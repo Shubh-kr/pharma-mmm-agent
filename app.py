@@ -17,6 +17,8 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from tools.incrementality_tool import compute_incrementality_scores, _holdout_design
+
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Pharma MMM Agent",
@@ -1700,6 +1702,237 @@ def tab_attribution(ols, geo_ols, config, freq):
             st.info("Re-run the geo pipeline to generate territory time-series data.")
 
 
+def tab_incrementality(geo_ols: dict, geo_bayes: dict, config: dict, freq: str = "weekly"):
+    st.header("🧪 Incrementality Testing Planner")
+    st.caption(
+        "Ranks every territory × channel pair as a candidate for a geo holdout / lift test. "
+        "Four signals drive the score: **Bayesian HDI uncertainty**, **Ridge vs Bayesian model disagreement**, "
+        "**saturation headroom**, and **spend materiality**. Higher score = higher priority to test."
+    )
+
+    if not geo_ols:
+        st.info("Run the geo pipeline first to enable the incrementality planner.")
+        return
+
+    # ── Signal weight controls ─────────────────────────────────────────────────
+    with st.expander("⚙️ Signal weights", expanded=False):
+        st.caption("Adjust how much each signal contributes to the composite score (must sum to 1.0).")
+        wc1, wc2, wc3, wc4 = st.columns(4)
+        w_hdi  = wc1.slider("HDI uncertainty",     0.0, 1.0, 0.35, 0.05, key="inc_w_hdi")
+        w_dis  = wc2.slider("Model disagreement",  0.0, 1.0, 0.35, 0.05, key="inc_w_dis")
+        w_sat  = wc3.slider("Saturation headroom", 0.0, 1.0, 0.20, 0.05, key="inc_w_sat")
+        w_spd  = wc4.slider("Spend materiality",   0.0, 1.0, 0.10, 0.05, key="inc_w_spd")
+        total_w = w_hdi + w_dis + w_sat + w_spd
+        if abs(total_w - 1.0) > 0.01:
+            st.warning(f"Weights sum to {total_w:.2f} — they will be normalised automatically.")
+        total_w = total_w or 1.0
+        weights = {
+            "hdi_uncertainty":    w_hdi  / total_w,
+            "model_disagreement": w_dis  / total_w,
+            "saturation_headroom": w_sat / total_w,
+            "spend_materiality":   w_spd / total_w,
+        }
+
+    candidates = compute_incrementality_scores(geo_ols, geo_bayes, weights)
+    if not candidates:
+        st.warning("No candidate data found — ensure geo OLS results are available.")
+        return
+
+    missing_bayes = all(c["missing_bayes"] for c in candidates)
+    if missing_bayes:
+        st.info(
+            "Bayesian geo results not found — HDI uncertainty and model disagreement signals "
+            "are unavailable. Run the geo pipeline with **Bayesian** enabled for richer scoring."
+        )
+
+    # ── Summary metrics ────────────────────────────────────────────────────────
+    top5   = candidates[:5]
+    n_terr = len({c["territory_key"] for c in candidates})
+    n_ch   = len({c["channel_key"]   for c in candidates})
+    mc1, mc2, mc3 = st.columns(3)
+    mc1.metric("Total candidates",  f"{len(candidates)}")
+    mc2.metric("Territories",       f"{n_terr}")
+    mc3.metric("Channels",          f"{n_ch}")
+
+    st.divider()
+
+    # ── Ranked table ───────────────────────────────────────────────────────────
+    st.subheader("📋 Ranked candidates")
+
+    table_rows = []
+    for c in candidates:
+        table_rows.append({
+            "Rank":          c["rank"],
+            "Territory":     c["territory_label"],
+            "Channel":       c["channel_label"],
+            "Type":          c["channel_type"].upper(),
+            "Score":         round(c["composite_score"], 3),
+            "HDI Uncert.":   f"{c['hdi_width_pct']:.0f}%",
+            "Model Disagree":f"{c['model_disagree_pct']:.0f}%",
+            "Sat. Headroom": f"{c['saturation_headroom_pct']:.0f}%",
+            "Avg Spend $K":  f"{c['avg_spend_k']:.0f}",
+            "OLS ROI":       f"{c['ols_roi']:.2f}",
+            "Bayes ROI":     f"—" if c["missing_bayes"] else f"{c['bayes_roi']:.2f}",
+        })
+
+    df_table = pd.DataFrame(table_rows)
+
+    def _score_color(val):
+        if isinstance(val, float):
+            g = int(val * 200)
+            return f"background-color: rgba(37,99,235,{val:.2f}); color: {'white' if val > 0.5 else 'black'}"
+        return ""
+
+    styled = (
+        df_table.style
+        .applymap(_score_color, subset=["Score"])
+        .set_properties(subset=["Score"], **{"font-weight": "bold"})
+    )
+    st.dataframe(styled, use_container_width=True, hide_index=True)
+
+    # ── Scatter: HDI uncertainty vs model disagreement ─────────────────────────
+    st.divider()
+    st.subheader("🔵 Signal map — HDI uncertainty vs model disagreement")
+    st.caption(
+        "Each bubble is a territory × channel pair. "
+        "Candidates in the **upper-right** have both high uncertainty AND high model disagreement "
+        "— the best targets for incrementality tests. Bubble size = avg spend."
+    )
+
+    scatter_df = pd.DataFrame([{
+        "Territory":       c["territory_label"],
+        "Channel":         c["channel_label"],
+        "HDI Uncertainty": c["hdi_width_pct"],
+        "Model Disagree":  c["model_disagree_pct"],
+        "Spend $K":        max(c["avg_spend_k"], 5.0),
+        "Score":           c["composite_score"],
+        "Rank":            c["rank"],
+    } for c in candidates])
+
+    terr_colors = px.colors.qualitative.Set2
+    terr_list   = scatter_df["Territory"].unique().tolist()
+    color_map   = {t: terr_colors[i % len(terr_colors)] for i, t in enumerate(terr_list)}
+
+    fig_scatter = go.Figure()
+    for terr in terr_list:
+        sub = scatter_df[scatter_df["Territory"] == terr]
+        fig_scatter.add_trace(go.Scatter(
+            x=sub["HDI Uncertainty"],
+            y=sub["Model Disagree"],
+            mode="markers+text",
+            name=terr,
+            text=sub["Channel"].str.split().str[0],  # first word for brevity
+            textposition="top center",
+            textfont=dict(size=9),
+            marker=dict(
+                size=sub["Spend $K"].apply(lambda v: max(8, min(45, v / 5))),
+                color=color_map[terr],
+                opacity=0.75,
+                line=dict(width=1, color="white"),
+            ),
+            customdata=sub[["Territory", "Channel", "Score", "Rank"]].values,
+            hovertemplate=(
+                "<b>%{customdata[0]} — %{customdata[1]}</b><br>"
+                "HDI uncertainty: %{x:.0f}%<br>"
+                "Model disagree: %{y:.0f}%<br>"
+                "Score: %{customdata[2]:.3f}  (rank #%{customdata[3]})<extra></extra>"
+            ),
+        ))
+
+    # Quadrant lines at medians
+    med_x = float(scatter_df["HDI Uncertainty"].median())
+    med_y = float(scatter_df["Model Disagree"].median())
+    for val, is_x in [(med_x, True), (med_y, False)]:
+        fig_scatter.add_shape(
+            type="line",
+            x0=val if is_x else scatter_df["HDI Uncertainty"].min(),
+            x1=val if is_x else scatter_df["HDI Uncertainty"].max(),
+            y0=scatter_df["Model Disagree"].min() if is_x else val,
+            y1=scatter_df["Model Disagree"].max() if is_x else val,
+            line=dict(color="gray", width=1, dash="dot"),
+        )
+    fig_scatter.add_annotation(
+        x=scatter_df["HDI Uncertainty"].max() * 0.95,
+        y=scatter_df["Model Disagree"].max() * 0.97,
+        text="High priority zone",
+        showarrow=False,
+        font=dict(size=11, color="#2563EB"),
+        bgcolor="rgba(219,234,254,0.7)",
+    )
+    fig_scatter.update_layout(
+        xaxis_title="HDI Uncertainty (%)",
+        yaxis_title="Model Disagreement (%)",
+        height=460,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+        margin=dict(t=30, b=40),
+    )
+    st.plotly_chart(fig_scatter, use_container_width=True)
+
+    # ── Score breakdown bar chart ──────────────────────────────────────────────
+    st.divider()
+    st.subheader("📊 Score breakdown — top 15 candidates")
+    top15 = candidates[:15]
+    labels_top = [f"#{c['rank']} {c['territory_label'][:4]}·{c['channel_label'].split()[0]}"
+                  for c in top15]
+    signals = [
+        ("HDI Uncertainty",    "hdi_uncertainty",    "#2563EB"),
+        ("Model Disagreement", "model_disagreement", "#EA580C"),
+        ("Sat. Headroom",      "saturation_headroom","#16A34A"),
+        ("Spend Materiality",  "spend_materiality",  "#9333EA"),
+    ]
+    fig_bar = go.Figure()
+    for sig_label, sig_key, color in signals:
+        w_key = sig_key
+        w_val = weights.get(w_key, 0.25)
+        fig_bar.add_trace(go.Bar(
+            name=sig_label,
+            x=labels_top,
+            y=[c[sig_key] * w_val for c in top15],
+            marker_color=color,
+            hovertemplate=f"{sig_label}: %{{y:.3f}}<extra></extra>",
+        ))
+    fig_bar.update_layout(
+        barmode="stack",
+        height=380,
+        yaxis_title="Weighted contribution to score",
+        xaxis_tickangle=-35,
+        legend=dict(orientation="h", yanchor="bottom", y=1.01),
+        margin=dict(t=30, b=80),
+    )
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+    # ── Top candidates with holdout design cards ───────────────────────────────
+    st.divider()
+    st.subheader("🗂️ Top candidates — holdout design recommendations")
+
+    n_show = st.slider("Show top N candidates", 3, min(15, len(candidates)), 5,
+                       key="inc_top_n")
+    for c in candidates[:n_show]:
+        design = _holdout_design(c, freq)
+        with st.expander(
+            f"#{c['rank']}  {c['territory_label']} — {c['channel_label']}"
+            f"  (score {c['composite_score']:.3f})",
+            expanded=(c["rank"] <= 3),
+        ):
+            dc1, dc2, dc3 = st.columns(3)
+            dc1.metric("OLS ROI",   f"{c['ols_roi']:.2f}x")
+            dc2.metric("Bayes ROI", f"—" if c["missing_bayes"] else f"{c['bayes_roi']:.2f}x")
+            dc3.metric("Avg spend", f"${c['avg_spend_k']:.0f}K / period")
+
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            sc1.metric("HDI uncertainty",    f"{c['hdi_width_pct']:.0f}%")
+            sc2.metric("Model disagreement", f"{c['model_disagree_pct']:.0f}%")
+            sc3.metric("Sat. headroom",      f"{c['saturation_headroom_pct']:.0f}%")
+            sc4.metric("Composite score",    f"{c['composite_score']:.3f}")
+
+            st.markdown(
+                f"**Recommended approach:** {design['approach']}  \n"
+                f"**Test duration:** {design['duration']}  \n"
+                f"**Holdout depth:** {design['depth']}  \n"
+                f"**Power note:** {design['power_note']}"
+            )
+
+
 def tab_insights(freq):
     report_path = f"reports/mmm_{freq}_insights.md"
     if not os.path.exists(report_path):
@@ -1760,7 +1993,8 @@ def main():
     )
 
     tab_names = ["📈 Overview", "📊 Ridge MMM", "🧮 Bayesian MMM",
-                 "🔍 Attribution", "💰 Budget", "🗺️ Geo", "📝 Insights"]
+                 "🔍 Attribution", "💰 Budget", "🗺️ Geo",
+                 "🧪 Incrementality", "📝 Insights"]
     tabs = st.tabs(tab_names)
 
     with tabs[0]:
@@ -1785,6 +2019,9 @@ def main():
         tab_geo(geo_df, geo_ols, geo_opt, geo_bayes, geo_hier, geo_narrative, config)
 
     with tabs[6]:
+        tab_incrementality(geo_ols, geo_bayes, config, freq)
+
+    with tabs[7]:
         tab_insights(freq)
 
 
