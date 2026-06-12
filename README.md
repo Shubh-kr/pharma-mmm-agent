@@ -396,7 +396,7 @@ python-dotenv>=1.0.0
 
 Built by **Shubham Kumar** — Senior Data Scientist at Deloitte with 6+ years building production ML systems for pharma and life sciences. This template is distilled from real-world MMM projects spanning 20M+ patient profiles, vaccine campaigns across 247 zip codes, and commercial strategy work for some of the largest pharma brands globally.
 
-- 🔗 [LinkedIn](https://linkedin.com/in/YOUR_HANDLE)
+- 🔗 [LinkedIn](https://linkedin.com/in/shabam23)
 - 🐙 [GitHub](https://github.com/Shubh-kr)
 - 📧 shubham.mle@gmail.com
 
