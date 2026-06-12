@@ -175,12 +175,18 @@ Math: `Δ Scripts ≈ roi_efficiency[t] × Δ Budget[t]` summed across territori
 **PR #9 — Incrementality testing planner** ✅ merged
 - `tools/incrementality_tool.py`: `compute_incrementality_scores()` scores all territory × channel pairs on 4 signals — Bayesian HDI uncertainty, Ridge vs Bayesian model disagreement, saturation headroom, spend materiality — min-max normalised then combined via configurable weights
 - `_holdout_design()` generates per-candidate test recommendations: approach, duration, holdout depth, power note
-- New `🧪 Incrementality` tab (tab 7 of 8): signal weight sliders, ranked table with colour-coded scores, bubble scatter (HDI uncertainty vs model disagreement), stacked score-breakdown bar chart for top 15, expandable holdout design cards for top N
+- New `🧪 Incrementality` tab: signal weight sliders, ranked table with colour-coded scores, bubble scatter (HDI uncertainty vs model disagreement), stacked score-breakdown bar chart for top 15, expandable holdout design cards for top N
 - Gracefully degrades when Bayesian geo results are absent
-- Tab order: Overview | Ridge | Bayesian | Attribution | Budget | Geo | **Incrementality** | Insights
+
+**PR #10 — Scenario planner** ✅ merged
+- `tools/scenario_tool.py`: calibrated response function `C₀ × (s/s₀)^alpha` anchored to actual OLS `total_contribution` (not the blended `estimated_roi` field, which is a prior-regularised value, not scripts/$K); saturation `alpha` from config captures diminishing returns
+- `solve_target_to_budget()` — inverse SLSQP: minimise `sum(spend)` s.t. `sum(response) >= target`; feasibility ceiling check against corridor-max spend
+- `solve_budget_to_scripts()` — forward SLSQP: maximise scripts given fixed budget (consistent response model)
+- `compute_efficiency_frontier()` — sweeps 25 NRx lift points (-20% to +40%), returns `(lift_pct, min_budget_k)` curve
+- New `🎯 Scenario` tab: mode radio (Target → Budget / Budget → Scripts); NRx or budget slider; required budget / achieved NRx metrics; channel allocation table + grouped bar chart; efficiency frontier with current marked as orange diamond (sits above curve — confirms suboptimal current mix)
+- Tab order: Overview | Ridge | Bayesian | Attribution | Budget | Geo | **Scenario** | Incrementality | Insights
 
 ## Next steps — Phase 2 remaining candidates
 
-1. **Scenario planner** — inverse optimizer: given a NRx target, solve for required budget and channel mix
-2. **Budget scenario comparison** — save and compare named scenarios (current / optimizer / custom) side-by-side
-3. **Real data ingestion** — CSV upload flow in the dashboard sidebar with schema auto-detection
+1. **Budget scenario comparison** — save and compare named scenarios (current / optimizer / custom) side-by-side
+2. **Real data ingestion** — CSV upload flow in the dashboard sidebar with schema auto-detection
