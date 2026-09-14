@@ -1,5 +1,9 @@
 # 💊 Pharma MMM Agent — LangChain-Powered Marketing Mix Modelling for Life Sciences
 
+[![CI](https://github.com/Shubh-kr/pharma-mmm-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Shubh-kr/pharma-mmm-agent/actions/workflows/ci.yml)
+[![Licence: MIT](https://img.shields.io/badge/Licence-MIT-yellow.svg)](#-licence)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](requirements.txt)
+
 > **An enterprise-grade, agentic Marketing Mix Modelling (MMM) pipeline built specifically for pharmaceutical and vaccine campaign analytics.**
 > Built by a Senior Data Scientist with 6+ years of real-world pharma analytics experience at a global consultancy.
 
@@ -45,8 +49,11 @@ If you've ever spent weeks wrangling claims data, fitting adstock curves, and th
 | `agents/analytics_agent.py` | LangChain agent that calls transforms → Ridge MMM → Bayesian MMM → optimiser |
 | `agents/insight_agent.py` | Converts OLS + Bayesian + Hierarchical results into a pharma-grade narrative with credible intervals, national hyperprior ROI rankings, and Mountain partial-pooling corrections |
 | `scripts/generate_dataset.py` | Synthetic vaccine campaign dataset generator — 12 channels, realistic pharma seasonality, 6 geo territories |
+| `tools/scenario_tool.py` | Calibrated response-curve solvers — target NRx → required budget (inverse SLSQP) and fixed budget → maximised scripts, plus efficiency-frontier sweep |
+| `tools/incrementality_tool.py` | Scores every territory × channel pair for experiment priority (HDI uncertainty, Ridge/Bayesian disagreement, saturation headroom, spend materiality) and generates holdout test designs |
+| `tools/db.py` | Optional PostgreSQL persistence layer — every pipeline run upserts results/raw data/narratives into `portfolio_db`; all functions fail soft to JSON/CSV files if no DB is reachable |
 
-### Dashboard (7 tabs)
+### Dashboard (9 tabs)
 
 | Tab | Contents |
 |-----|----------|
@@ -56,7 +63,17 @@ If you've ever spent weeks wrangling claims data, fitting adstock curves, and th
 | **Attribution** | Per-period stacked area decomposition (baseline + channels + actual overlay), contribution waterfall |
 | **Budget** | Current vs recommended overlay bar chart, reallocation table |
 | **Geo** | Territory KPIs, US choropleth, channel contributions, response curves, seasonal ROI heatmap, Bayesian + Hierarchical sections, two-level optimizer, what-if simulator |
+| **Scenario** | Target→Budget and Budget→Scripts solvers, channel allocation table, efficiency frontier chart |
+| **Incrementality** | Territory × channel test-priority scoring, signal weight sliders, bubble/score-breakdown charts, holdout design cards |
 | **Insights** | Rendered Markdown narrative, download button |
+
+### Ops & tooling
+
+| Component | Description |
+|---|---|
+| `Dockerfile` | Reproducible container image — ships with the sample dataset + model outputs baked in, so `docker run` opens straight into a populated dashboard |
+| `.github/workflows/ci.yml` | GitHub Actions: lint (ruff), full pipeline smoke test (national + geo, direct mode), Docker build — runs on every push/PR to `main` |
+| `tools/db.py` + `scripts/migrate_to_db.py` | Optional PostgreSQL persistence with a one-time migration script for existing JSON/CSV outputs |
 
 ---
 
@@ -74,40 +91,59 @@ If you've ever spent weeks wrangling claims data, fitting adstock curves, and th
 
 ---
 
-## 🤖 Agent Architecture
+## 🤖 Architecture
 
+`run.py` is the single entrypoint. It orchestrates a **Planner Agent**, which either drives an LLM-based **Analytics Agent** (LangChain, tool-calling) or — with no API key configured — calls the same tools directly ("direct mode"). Every tool is a pure function that reads/writes JSON or CSV, so the pipeline, the dashboard, and the optional database are all reading from the same artefacts.
+
+```mermaid
+flowchart TD
+    CLI["run.py --geo --geo-bayesian --geo-insights"] --> Planner
+
+    subgraph Orchestration
+        Planner["Planner Agent\n(orchestrates stages, falls back to direct mode)"]
+        Analytics["Analytics Agent\n(LLM tool-calling, or direct-mode function calls)"]
+        Insight["Insight Agent\n(LLM narrative writer)"]
+        Planner --> Analytics
+        Planner --> Insight
+    end
+
+    subgraph "Tools — national"
+        T1["transforms.py\nadstock + saturation"]
+        T2["ols_mmm_tool.py\nRidge MMM"]
+        T3["bayesian_mmm_tool.py\nPyMC MMM"]
+        T4["optimizer_tool.py\nSLSQP reallocation"]
+    end
+
+    subgraph "Tools — geo (6 territories)"
+        G1["geo_mmm_tool.py"]
+        G2["geo_bayesian_mmm_tool.py"]
+        G3["geo_hierarchical_mmm_tool.py"]
+        G4["geo_optimizer_tool.py"]
+    end
+
+    subgraph "Tools — planning"
+        S1["scenario_tool.py\ntarget↔budget solvers"]
+        S2["incrementality_tool.py\ntest-priority scoring"]
+    end
+
+    Analytics --> T1 --> T2 --> T4
+    T2 --> T3
+    Analytics --> G1 --> G4
+    G1 --> G2 --> G3
+    T2 -.-> S1
+    T3 -.-> S2
+    G1 -.-> S2
+
+    T2 & T3 & T4 & G1 & G2 & G3 & G4 & S1 & S2 --> Files["data/raw/*.json / *.csv\n(ols_results, bayesian_results,\nbudget_optimized, geo_*, ...)"]
+    Insight --> Reports["reports/*.md\n(national + geo narratives)"]
+
+    Files -.->|optional, fails soft| DB[("PostgreSQL\nmmm.results / raw_data / geo_data\n/ narratives / run_log")]
+    Files --> Dashboard["Streamlit Dashboard\n(app.py, 9 tabs)"]
+    Reports --> Dashboard
+    DB -.->|DB-first, file fallback| Dashboard
 ```
-python run.py [--bayesian] [--geo] [--geo-bayesian] [--geo-hierarchical] [--geo-insights] [--no-insights] [--freq monthly]
-    │
-    ▼
-┌──────────────────────────────────────────────────────────────┐
-│                       Planner Agent                          │
-│  Orchestrates pipeline; falls back to direct mode (no LLM)  │
-└────────────┬─────────────────────────────────────────────────┘
-             │
-    ┌────────┴──────────┐
-    ▼                   ▼
-┌──────────────────┐  ┌──────────────────────────────────────┐
-│  Analytics Agent │  │           Insight Agent              │
-│  (LLM / direct)  │  │  Reads OLS + Bayesian + Hierarchical │
-│                  │  │  Writes pharma narrative (national +  │
-│  1. Transforms   │  │  geo territory deep-dives)            │
-│  2. Ridge MMM    │  └──────────────────────────────────────┘
-│  3. Optimizer    │
-│  4. Bayesian MMM │
-└──────────────────┘
-         │
-         ▼
-    LangChain Tools
-    ├── apply_all_transforms_tool
-    ├── run_ols_mmm_tool               → *_ols_results.json (+ attribution timeseries)
-    ├── run_budget_optimizer_tool      → *_budget_optimized.json
-    ├── run_bayesian_mmm_tool          → *_bayesian_results.json
-    ├── run_geo_ols_mmm_tool           → *_geo_ols_results.json (+ seasonal ROI split)
-    ├── run_geo_budget_optimizer_tool  → *_geo_budget_optimized.json
-    ├── run_geo_bayesian_mmm_tool      → *_geo_bayesian_results.json
-    └── run_geo_hierarchical_mmm_tool  → *_geo_hierarchical_results.json
-```
+
+**Design principle:** the dashboard, the CI smoke test, and a data scientist debugging a channel's ROI are all reading the *same* JSON files the pipeline writes — there is no separate "serving" representation of the model output to drift out of sync with what was actually fit.
 
 ---
 
@@ -156,6 +192,28 @@ python run.py --freq monthly --no-insights --geo
 
 ```bash
 streamlit run app.py
+```
+
+### 5. Or run it in Docker (no local Python setup at all)
+
+The image ships with the pre-generated sample dataset and model outputs already in `data/raw/`, so the dashboard is fully populated on first launch — no pipeline run required.
+
+```bash
+docker build -t pharma-mmm-agent .
+docker run -p 8501:8501 pharma-mmm-agent
+# → http://localhost:8501
+```
+
+To refit models against new data or config inside a running container:
+
+```bash
+docker exec -it <container-id> python run.py --no-insights --geo
+```
+
+To connect the container to a PostgreSQL instance instead of the file fallback, pass `MMM_DB_URL`:
+
+```bash
+docker run -p 8501:8501 -e MMM_DB_URL="postgresql://user:pass@host:5432/db" pharma-mmm-agent
 ```
 
 ---
@@ -274,6 +332,57 @@ Long format (104 weeks × 6 territories). Same columns plus `territory`, `territ
 
 ---
 
+## 🧪 Evaluation Methodology
+
+MMM has no ground-truth label — nobody knows the "true" incremental scripts a channel produced. Because of that, this project leans on **model diagnostics + cross-model agreement + explicit uncertainty**, rather than a single accuracy number, to judge whether a result is trustworthy enough to act on.
+
+### 1. Fit quality (per model)
+- **Ridge MMM**: R² and MAPE reported on in-sample fit (`Ridge MMM Results (R²=0.951, MAPE=3.0%)`); non-negativity constraint checked; residuals inspected for autocorrelation from the adstock/seasonality specification.
+- **Bayesian MMM**: MCMC convergence via **R̂** (Gelman-Rubin) per parameter — the hierarchical model targets R̂ < 1.01 (weekly R̂=1.005, monthly R̂=1.004) — plus effective sample size and 90% HDI width as a direct uncertainty measure per channel.
+
+### 2. Cross-model agreement as a validity signal
+The Ridge and Bayesian models are fit **independently**, on the same transformed data, with different assumptions (point estimate + regularisation vs. full posterior with informative priors). Where they agree, confidence in the channel's ROI is high. Where they disagree materially, that disagreement is itself surfaced as a signal — it drives the **Incrementality tab**'s ranking of which territory × channel pairs most need a real holdout experiment, rather than being hidden or averaged away.
+
+### 3. Held-out and out-of-sample structure
+- The synthetic data generator (`scripts/generate_dataset.py`) is **seeded and deterministic** — re-running it reproduces byte-identical CSVs (verified in CI), which makes every reported metric reproducible from a clean checkout.
+- Territory-level models (`geo_mmm_tool.py`, per-territory Bayesian) are effectively an out-of-sample check on the national model: territory spend and baseline scripts are scaled so that territory-level totals should aggregate back to the national number, and systematic mismatches (e.g. Mountain's small-sample noise) are what motivated the hierarchical partial-pooling model in the first place.
+- The **efficiency frontier** in the Scenario tab plots the current spend mix against the modelled frontier — the current point sitting *above* the curve is a built-in sanity check that the optimizer is finding a genuinely better allocation, not just a different one.
+
+### 4. What this does *not* claim
+- This is a **correlational, model-based estimate** of channel contribution, not a causal, experimentally-validated one. The Incrementality tab exists specifically to prioritise where a real lift test would most reduce that uncertainty.
+- ROI numbers blend a config-defined prior with the model estimate (`prior-estimate` vs `model` is labelled in every output table) — channels the model can't separately identify are never silently reported as model-driven.
+- All current data is **synthetic**, calibrated to plausible pharma spend/response ranges but not fit to real claims data. See [Responsible AI & Auditability](#-responsible-ai--auditability) for how this is meant to be used with real data.
+
+---
+
+## 🛡️ Responsible AI & Auditability
+
+Pharma commercial analytics is a regulated context — budget and channel decisions trace back to claims data, and any AI-assisted recommendation needs to be explainable and reviewable after the fact. This project is built with that in mind:
+
+### Decision support, not autonomous decisioning
+The LLM never touches spend. The **Analytics Agent** calls fixed, deterministic tools (Ridge/Bayesian MMM, SLSQP optimizer) — the LLM's only role is orchestration (which tool to call next) and, separately, narrative generation. The **Insight Agent** is a pure text-generation step that reads already-computed JSON and writes a plain-English summary of it; it cannot alter a model coefficient, a ROI estimate, or a budget recommendation. Every number a stakeholder acts on comes from an auditable statistical model, not from the LLM.
+
+### Every output is provenance-labelled
+Channel contributions are explicitly tagged `model` vs. `prior_estimate` in every table and JSON payload — a reviewer can immediately see which numbers came from the fitted regression and which are a config-defined fallback for channels the model couldn't separately identify (`ols_mmm_tool.py`). The same applies to Ridge-vs-Bayesian disagreement, which is surfaced (Incrementality tab) rather than silently reconciled.
+
+### Full run history, not just the latest result
+`tools/db.py` (optional PostgreSQL layer) keeps `mmm.run_log` — one row per pipeline stage execution with timestamp, freq, stage, and status — plus every historical result upserted with a `created_at`. Nothing overwrites silently without a record that a run happened. When no database is configured, the same guarantee holds at the filesystem level: every JSON result includes its own generation parameters, so a result file is self-describing without needing to reconstruct which config produced it.
+
+### Reproducibility by construction
+- `config/config.yaml` is the single source of truth for every channel prior, adstock decay, saturation curve, and optimizer bound — there are no hidden magic numbers in the modelling code, and every parameter change is a version-controlled diff.
+- The synthetic dataset generator is seeded; identical config + identical seed reproduces byte-identical input data (checked in CI), so a reported result can always be regenerated from the repo alone.
+- The LLM narrative step (`insight_agent.py`) sets an explicit `max_tokens` for the Anthropic client specifically because the default (1024) was found to silently truncate the longer geo narrative mid-sentence — a truncated report failing loudly (or not being generated) is preferred over a silently incomplete one.
+
+### No PII / PHI in this repository
+All shipped data (`data/raw/*.csv`) is synthetically generated — there is no real patient, HCP, or claims data anywhere in this repo, and none is required to evaluate the modelling approach. The intended adoption path for real data is aggregate, de-identified claims (e.g. via an IQVIA/Symphony-style territory-week extract, see [Phase 2](#-phase-2--in-progress)) — patient-level data is out of scope for this pipeline by design; it operates on aggregated weekly/monthly territory totals only.
+
+### Known limitations (read before using with real data)
+- Estimates are **correlational**, not causal — see [Evaluation Methodology](#-evaluation-methodology) for why the Incrementality tab exists.
+- The Bayesian priors (`prior_roi` per channel in `config.yaml`) encode analyst judgment; a materially wrong prior will bias the blended ROI even when the model technically converges (R̂ ≈ 1). Priors should be reviewed by a domain expert before results are used to justify a real budget shift.
+- This template has not been validated against real-world claims data or submitted through any regulatory or medical-legal review process — it is a modelling framework and starting point, not a validated production system.
+
+---
+
 ## 🔧 Configuration
 
 All parameters live in `config/config.yaml`:
@@ -339,6 +448,7 @@ plotly>=5.18.0
 streamlit>=1.35.0
 pyyaml>=6.0
 python-dotenv>=1.0.0
+psycopg2-binary>=2.9.0   # optional — only used if MMM_DB_URL / PostgreSQL is configured
 ```
 
 ---
@@ -372,17 +482,19 @@ python-dotenv>=1.0.0
 
 ---
 
-## 🔭 Phase 2 — Planned
+## 🔭 Phase 2 — In Progress
 
 **Measurement & experimentation**
-- [ ] **Incrementality testing planner** — Translate Bayesian HDI + Ridge vs Bayesian disagreement into prioritised geo holdout / lift test recommendations; identify which territory × channel has the most to gain from an experiment
+- [x] **Incrementality testing planner** — `tools/incrementality_tool.py` scores every territory × channel pair on Bayesian HDI uncertainty, Ridge vs Bayesian disagreement, saturation headroom, and spend materiality; generates ranked holdout test designs (approach, duration, depth, power note) in the Incrementality tab
 - [ ] **iROAS estimator** — Geo-based lift test simulation using the hierarchical model's territory baselines as counterfactuals
 
 **Planning tools**
-- [ ] **Scenario planner** — Given a target NRx goal, work backwards to the required budget and channel mix (inverse of the optimizer)
+- [x] **Scenario planner** — `tools/scenario_tool.py`: calibrated response-curve solvers for target NRx → required budget (inverse SLSQP) and fixed budget → maximised scripts (forward SLSQP), plus a 25-point efficiency frontier, in the Scenario tab
 - [ ] **Budget scenario comparison** — Side-by-side view of 2–3 named scenarios (current / optimizer / custom) with projected scripts for each; useful for budget cycle presentations
 
 **Data & operationalisation**
+- [x] **PostgreSQL integration** — `tools/db.py`: DB-first data layer (`mmm` schema — results, raw_data, geo_data, narratives, run_log), idempotent upserts, transparent fallback to JSON/CSV files when no DB is reachable
+- [x] **Production packaging** — Dockerfile + GitHub Actions CI (lint, pipeline smoke test, Docker build) so the pipeline runs reproducibly outside a local dev environment
 - [ ] **Real data ingestion** — CSV upload flow in the dashboard; auto-detect date format, channel columns, outcome column; validation against expected schema
 - [ ] **Automated refresh** — Scheduled pipeline run (weekly/monthly) that refit models and regenerates narratives when new spend data is dropped into `data/raw/`
 
